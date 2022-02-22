@@ -23,7 +23,7 @@ jobs:
       - name: Download required dependencies
         run: |
           apt update
-          apt-get install ros-noetic-desktop-full
+          DEBIAN_FRONTEND=noninteractive apt-get install ros-noetic-desktop-full
           DEBIAN_FRONTEND=noninteractive apt install -y cmake gcc g++ git libboost-dev libboost-program-options-dev libyaml-cpp-dev python3-pip python-catkin-tools
       - name: Build
         run: |
