@@ -1,0 +1,6 @@
+# workspace_limits: the range of workspace
+workspace_limits: [-0.50, 0.50, 0.25, 0.80, 0.30, 0.75]
+home_pose: [0.0, 0.25, 0.4, 0.0, 1.0, 0.0, 0.0]
+work_start_pose: [0.0, 0.25, 0.25, 0.0, 1.0, 0.0, 0.0]
+# the pixel number of map
+predict_map_size: [255, 255]
