@@ -1,0 +1,30 @@
+name: CI for ROS 1
+
+on:
+  push:
+    branches: [ real-devel ]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [ real-devel ]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  ros1-sh_CI:
+    runs-on: ubuntu-20.04
+    container: ros:noetic
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: src/ros1-sh
+
+      - name: Download required dependencies
+        run: |
+          apt update
+          DEBIAN_FRONTEND=noninteractive apt install -y cmake gcc g++ git libboost-dev libboost-program-options-dev libyaml-cpp-dev python3-pip python-catkin-tools
+      - name: Build
+        run: |
+          . /opt/ros/noetic/setup.sh
+          catkin build
