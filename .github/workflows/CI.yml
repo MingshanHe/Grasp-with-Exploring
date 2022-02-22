@@ -23,7 +23,8 @@ jobs:
       - name: Download required dependencies
         run: |
           apt update
-          DEBIAN_FRONTEND=noninteractive apt install -y cmake gcc g++ git libboost-dev libboost-program-options-dev libyaml-cpp-dev python3-pip python-catkin-pkg python-osrf-pycommon python-catkin-tools
+          apt-get install ros-kinetic-desktop-full
+          DEBIAN_FRONTEND=noninteractive apt install -y cmake gcc g++ git libboost-dev libboost-program-options-dev libyaml-cpp-dev python3-pip python-catkin-tools
       - name: Build
         run: |
           . /opt/ros/noetic/setup.sh
