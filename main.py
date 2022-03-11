@@ -23,7 +23,6 @@ def main(args):
 
     ur5e.Explore()
 
-    print ("Current tool pose is: ",  ur5e.getl())
     while True :
         time.sleep(0.1)  #sleep first since the robot may not have processed the command yet
         if ur5e.is_program_running():
