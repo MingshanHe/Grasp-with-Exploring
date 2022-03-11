@@ -33,20 +33,36 @@ class UR5E(Robot):
         time.sleep(0.2)
 
     def GoHome(self):
+        """
+        Let the Robot move to
+        the defined home pose
+        """
         Robot.movel(self, self.home_pose, acc=0.02, vel=0.1)
         time.sleep(1)
 
     def GoWork(self):
+        """
+        Let the Robot move to
+        the start pose of work
+        """
         Robot.movel(self, self.workstart_pose, acc=0.01, vel=0.05)
         time.sleep(1)
 
     def Go(self, pose):
+        """
+        Let the Robot move to
+        the input pose data
+        """
         Robot.movel(self, pose, acc=0.01, vel=0.05)
         time.sleep(2)
         self.gripper_close()
         time.sleep(2)
 
     def DetectObject(self):
+        """
+        Check the tcp_force and
+        return if detect the object
+        """
         self.tcp_Force = self.Monitor.tcf_force()
         self.tcp_Force = self.filter.LowPassFilter(self.tcp_Force)
 
@@ -59,65 +75,56 @@ class UR5E(Robot):
             return False
 
     def Explore(self):
+        """
+        Expore and Grasp
+        """
         while (self.DetectObject()):
             # Force = self.Monitor.tcf_force()
             Robot.speedl_tool(self, (0, 0.01, 0, 0, 0, 0),0.01,0.15)
 
         if self.Detected:
-            # DownObject  = [0.0, -0.4, 0.135, -2.2395234506523, -2.203181520360715, -3.3507907489496414e-05]
             pos = self.nn.forward(self.tcp_Force)
-            print(pos)
             predict_pos = Robot.getl(self)
-            print(predict_pos)
             predict_pos[0] = predict_pos[0] - pos[0]
             predict_pos[1] = predict_pos[1] - pos[1]
 
-            
             if((predict_pos[0]>self.workspace_limits[0]) & (predict_pos[0]<self.workspace_limits[1]) & (predict_pos[1]>self.workspace_limits[2]) & (predict_pos[1]<self.workspace_limits[3])):
                 self.Grasp(pos, np.pi/2)
             else:
-                print(predict_pos[0])
-                print(predict_pos[1])
                 print("Predicted Position is out of the workspace limit.")
 
 
     def Grasp(self, pos_data, ori_data):
-        # current_pos = Robot.get_pos(self)
-        # current_pos[2] = 0.2
-        # UpObject    = [0.0, -0.4, 0.200, -2.2395234506523, -2.203181520360715, -3.3507907489496414e-05]
-        # DownObject  = [0.0, -0.4, 0.135, -2.2395234506523, -2.203181520360715, -3.3507907489496414e-05]
-        Robot.back(self, 0.2, acc=0.02, vel=0.1)
-        time.sleep(0.5)
-        # self.Go(current_pos)
+        """
+        Grasp Strategy
+        """
 
-        # get current pose, transform it and move robot to new pose
+        Robot.back(self, 0.2, acc=0.02, vel=0.1)
+        time.sleep(1)
+
         trans = Robot.get_pose(self)  # get current transformation matrix (tool to base)
         trans.pos.x -= pos_data[0]
         trans.pos.y -= pos_data[1]
         trans.orient.rotate_zb(ori_data)
         Robot.set_pose(self,trans, acc=0.1, vel=0.1)  # apply the new pose
+        time.sleep(1)
 
-
-
-
-        # Robot.movel((pos_data[0], pos_data[1], pos_data[2], 0, 0, 0), relative=true)  # move relative to current pose
-        # time.sleep(0.5)
-        # current_pos = Robot.get_pos(self)
-
-        # Robot.movel((current_pos[0], current_pos[1], current_pos[2], ori_data[0], ori_data[1], ori_data[2]))  # move relative to current pose
-        time.sleep(0.5)
-
-        # self.Go(data)
-        # time.sleep(0.5)
         self.gripper_open()
-        time.sleep(0.5)
+        time.sleep(1)
+
         Robot.back(self,-0.2, acc=0.01, vel=0.05)
         time.sleep(2)
+
         self.gripper_close()
+        time.sleep(1)
 
         Robot.back(self, 0.2, acc=0.02, vel=0.1)
 
     def gripper_open(self):
+        """
+        open the onrobot RG2 gripper
+        using the defined urscript
+        """
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_socket.connect(("192.168.1.101", 30003))
         with open("urscripts/open.txt", "r") as f:
@@ -126,8 +133,11 @@ class UR5E(Robot):
         tcp_socket.close()
         time.sleep(2)
 
-
     def gripper_close(self):
+        """
+        close the onrobot RG2 gripper
+        using the defined urscript
+        """
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_socket.connect(("192.168.1.101", 30003))
         with open("urscripts/close.txt", "r") as f:
