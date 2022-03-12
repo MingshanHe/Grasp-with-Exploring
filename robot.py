@@ -5,15 +5,15 @@ import time
 import os
 import numpy as np
 import utils
+from logger import Logger
 from vrep_api import vrep
 
 class Robot(object):
     def __init__(self, obj_mesh_dir, num_obj, workspace_limits):
-
+        # Setup some params
         self.workspace_limits = workspace_limits
-
-        # If in simulation...
-
+        self.home_pose = [-0.276, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
+        self.workstart_pose = [-0.276, 0.0, 0.04, np.pi/2, 0.0, np.pi/2]
         # Define colors for object meshes (Tableau palette)
         self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
                                         [89.0, 161.0, 79.0], # green
@@ -33,7 +33,7 @@ class Robot(object):
 
         # Randomly choose objects to add to scene
         self.obj_mesh_ind = np.random.randint(0, len(self.mesh_list), size=self.num_obj)
-        self.obj_mesh_color = self.color_space[np.asarray(range(self.num_obj)) % 10, :]
+        self.obj_mesh_color = self.color_space[np.asarray(range(10)), :]
 
         # Make sure to have the server side running in V-REP:
         # in a child script of a V-REP scene, add following command
@@ -61,6 +61,13 @@ class Robot(object):
         # Add objects to simulation environment
         self.add_objects()
 
+        #? Initialize data logger
+        logging_directory = os.path.abspath('logs')
+        self.logger = Logger(logging_directory)
+
+        self.force_data = []
+        self.torque_data = []
+
     def add_objects(self):
 
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
@@ -85,13 +92,109 @@ class Robot(object):
             curr_shape_handle = ret_ints[0]
             self.object_handles.append(curr_shape_handle)
 
-        self.prev_obj_positions = []
-        self.obj_positions = []
+        time.sleep(2)
 
+    def GoHome(self):
+
+        # sim_ret, UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
+        sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+        sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+        # Compute gripper position and linear movement increments
+        move_direction = np.asarray([self.home_pose[0] - UR5_target_position[0], self.home_pose[1] - UR5_target_position[1], self.home_pose[2] - UR5_target_position[2]])
+        move_magnitude = np.linalg.norm(move_direction)
+        move_step = 0.05*move_direction/move_magnitude
+        num_move_steps = max(int(np.floor((move_direction[0]+1e-5)/(move_step[0]+1e-5))),
+                            int(np.floor((move_direction[1]+1e-5)/(move_step[1]+1e-5))),
+                            int(np.floor((move_direction[2]+1e-5)/(move_step[2]+1e-5))))
+
+        # Compute gripper orientation and rotation increments
+        rotate_direction = np.asarray([self.home_pose[3] - UR5_target_orientation[0], self.home_pose[4] - UR5_target_orientation[1], self.home_pose[5] - UR5_target_orientation[2]])
+        rotate_magnitude = np.linalg.norm(rotate_direction)
+        rotate_step = 0.05*rotate_direction/rotate_magnitude
+        num_rotate_steps = max(int(np.floor((rotate_direction[0]+1e-5)/(rotate_step[0]+1e-5))),
+                            int(np.floor((rotate_direction[1]+1e-5)/(rotate_step[1]+1e-5))),
+                            int(np.floor((rotate_direction[2]+1e-5)/(rotate_step[2]+1e-5))))
+
+        # Simultaneously move and rotate gripper
+        for step_iter in range(max(num_move_steps, num_rotate_steps)):
+            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+            vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
+        vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(self.home_pose[0],self.home_pose[1],self.home_pose[2]),vrep.simx_opmode_blocking)
+        vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (self.home_pose[3],self.home_pose[4],self.home_pose[5]), vrep.simx_opmode_blocking)
+        time.sleep(1)
+
+    def GoWork(self):
+
+        # sim_ret, UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
+        sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+        sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+        # Compute gripper position and linear movement increments
+        move_direction = np.asarray([self.workstart_pose[0] - UR5_target_position[0], self.workstart_pose[1] - UR5_target_position[1], self.workstart_pose[2] - UR5_target_position[2]])
+        move_magnitude = np.linalg.norm(move_direction)
+        move_step = 0.05*move_direction/move_magnitude
+        num_move_steps = max(int(np.floor((move_direction[0]+1e-5)/(move_step[0]+1e-5))),
+                            int(np.floor((move_direction[1]+1e-5)/(move_step[1]+1e-5))),
+                            int(np.floor((move_direction[2]+1e-5)/(move_step[2]+1e-5))))
+
+        # Compute gripper orientation and rotation increments
+        rotate_direction = np.asarray([self.workstart_pose[3] - UR5_target_orientation[0], self.workstart_pose[4] - UR5_target_orientation[1], self.workstart_pose[5] - UR5_target_orientation[2]])
+        rotate_magnitude = np.linalg.norm(rotate_direction)
+        rotate_step = 0.05*rotate_direction/rotate_magnitude
+        num_rotate_steps = max(int(np.floor((rotate_direction[0]+1e-5)/(rotate_step[0]+1e-5))),
+                            int(np.floor((rotate_direction[1]+1e-5)/(rotate_step[1]+1e-5))),
+                            int(np.floor((rotate_direction[2]+1e-5)/(rotate_step[2]+1e-5))))
+
+        # Simultaneously move and rotate gripper
+        for step_iter in range(max(num_move_steps, num_rotate_steps)):
+            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+            vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
+        vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(self.workstart_pose[0],self.workstart_pose[1],self.workstart_pose[2]),vrep.simx_opmode_blocking)
+        vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (self.workstart_pose[3],self.workstart_pose[4],self.workstart_pose[5]), vrep.simx_opmode_blocking)
+        time.sleep(1)
+
+    def Explore(self, target_pose, vel = 0.01):
+
+        sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+        sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+        # Compute gripper position and linear movement increments
+        move_direction = np.asarray([target_pose[0] - UR5_target_position[0], target_pose[1] - UR5_target_position[1], target_pose[2] - UR5_target_position[2]])
+        move_magnitude = np.linalg.norm(move_direction)
+        move_step = vel*move_direction/move_magnitude
+        num_move_steps = max(int(np.floor((move_direction[0]+1e-5)/(move_step[0]+1e-5))),
+                            int(np.floor((move_direction[1]+1e-5)/(move_step[1]+1e-5))),
+                            int(np.floor((move_direction[2]+1e-5)/(move_step[2]+1e-5))))
+
+        # Compute gripper orientation and rotation increments
+        rotate_direction = np.asarray([target_pose[3] - UR5_target_orientation[0], target_pose[4] - UR5_target_orientation[1], target_pose[5] - UR5_target_orientation[2]])
+        rotate_magnitude = np.linalg.norm(rotate_direction)
+        rotate_step = 0.05*rotate_direction/rotate_magnitude
+        num_rotate_steps = max(int(np.floor((rotate_direction[0]+1e-5)/(rotate_step[0]+1e-5))),
+                            int(np.floor((rotate_direction[1]+1e-5)/(rotate_step[1]+1e-5))),
+                            int(np.floor((rotate_direction[2]+1e-5)/(rotate_step[2]+1e-5))))
+
+        # Simultaneously move and rotate gripper
+        for step_iter in range(max(num_move_steps, num_rotate_steps)):
+            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+            vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
+            sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
+            
+            # Output the force of XYZ
+            self.force_data.append(forceVector)
+            print(forceVector)
+            # Output the torque of XYZ
+            # print(torqueVector)
+        self.logger.save_force_data(self.force_data)
+        vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(target_pose[0],target_pose[1],target_pose[2]),vrep.simx_opmode_blocking)
+        vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (target_pose[3],target_pose[4],target_pose[5]), vrep.simx_opmode_blocking)
+        time.sleep(1)
 
     def restart_sim(self):
 
         sim_ret, self.UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
+        sim_ret, self.Sensor_handle = vrep.simxGetObjectHandle(self.sim_client, 'UR5_connection', vrep.simx_opmode_blocking)
         vrep.simxSetObjectPosition(self.sim_client, self.UR5_target_handle, -1, (-0.5,0,0.3), vrep.simx_opmode_blocking)
         vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
         vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
@@ -375,25 +478,6 @@ class Robot(object):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0], UR5_target_position[1] + move_step[1], UR5_target_position[2] + move_step[2]),vrep.simx_opmode_blocking)
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client,self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
             vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(tool_position[0],tool_position[1],tool_position[2]),vrep.simx_opmode_blocking)
-
-        else:
-
-            self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.tcp_socket.connect((self.tcp_host_ip, self.tcp_port))
-            tcp_command = "movel(p[%f,%f,%f,%f,%f,%f],a=%f,v=%f,t=0,r=0)\n" % (tool_position[0],tool_position[1],tool_position[2],tool_orientation[0],tool_orientation[1],tool_orientation[2],self.tool_acc,self.tool_vel)
-            self.tcp_socket.send(str.encode(tcp_command))
-
-            # Block until robot reaches target tool position
-            tcp_state_data = self.tcp_socket.recv(2048)
-            actual_tool_pose = self.parse_tcp_state_data(tcp_state_data, 'cartesian_info')
-            while not all([np.abs(actual_tool_pose[j] - tool_position[j]) < self.tool_pose_tolerance[j] for j in range(3)]):
-                # [min(np.abs(actual_tool_pose[j] - tool_orientation[j-3]), np.abs(np.abs(actual_tool_pose[j] - tool_orientation[j-3]) - np.pi*2)) < self.tool_pose_tolerance[j] for j in range(3,6)]
-                # print([np.abs(actual_tool_pose[j] - tool_position[j]) for j in range(3)] + [min(np.abs(actual_tool_pose[j] - tool_orientation[j-3]), np.abs(np.abs(actual_tool_pose[j] - tool_orientation[j-3]) - np.pi*2)) for j in range(3,6)])
-                tcp_state_data = self.tcp_socket.recv(2048)
-                prev_actual_tool_pose = np.asarray(actual_tool_pose).copy()
-                actual_tool_pose = self.parse_tcp_state_data(tcp_state_data, 'cartesian_info')
-                time.sleep(0.01)
-            self.tcp_socket.close()
 
     def guarded_move_to(self, tool_position, tool_orientation):
 
