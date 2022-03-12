@@ -21,7 +21,7 @@ class UR5E(Robot):
         self.use_sim = use_simulation
         if self.use_sim:
             # Setup some params
-            self.workspace_limits = workspace_limits
+            self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]])
             self.home_pose = [-0.276, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
             self.workstart_pose = [-0.276, 0.0, 0.04, np.pi/2, 0.0, np.pi/2]
             # Define colors for object meshes (Tableau palette)
@@ -37,8 +37,8 @@ class UR5E(Robot):
                                             [255, 157, 167]])/255.0 #pink
 
             # Read files in object mesh directory
-            self.obj_mesh_dir = obj_mesh_dir
-            self.num_obj = num_obj
+            self.obj_mesh_dir = 'simulation/objects/block'
+            self.num_obj = 1
             self.mesh_list = os.listdir(self.obj_mesh_dir)
 
             # Randomly choose objects to add to scene
