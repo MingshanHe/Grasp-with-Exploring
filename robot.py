@@ -6,6 +6,7 @@ import os
 import numpy as np
 import utils
 from logger import Logger
+from utils import Filter
 from vrep_api import vrep
 
 class Robot(object):
@@ -64,6 +65,9 @@ class Robot(object):
         #? Initialize data logger
         logging_directory = os.path.abspath('logs')
         self.logger = Logger(logging_directory)
+
+        #? Initialize filter
+        self.filter = Filter()
 
         self.force_data = []
         self.torque_data = []
@@ -180,7 +184,7 @@ class Robot(object):
             vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
             vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
             sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
-            
+            forceVector = self.filter.LowPassFilter(forceVector)
             # Output the force of XYZ
             self.force_data.append(forceVector)
             print(forceVector)
