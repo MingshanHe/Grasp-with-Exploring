@@ -24,19 +24,23 @@ def main(args):
     #!--------------- Setup options ---------------
     obj_mesh_dir    = os.path.abspath(args.obj_mesh_dir)  # Directory containing 3D mesh files (.obj) of objects to be added to simulation
     num_obj         = args.num_obj  # Number of objects to add to simulation
-    test_preset_file = os.path.abspath(args.test_preset_file) 
     workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]]) # Cols: min max, Rows: x y z (define workspace limits in robot coordinates)
 
     #? Set random seed
     # np.random.seed(random_seed)
 
-    #* Initialize pick-and-place system (camera and robot)
+    #? Initialize pick-and-place system (camera and robot)
     robot = Robot(obj_mesh_dir, num_obj, workspace_limits)
 
-    #? Initialize data logger
-    # logger = Logger(continue_logging, logging_directory)
 
-    #? Initialize variables for heuristic bootstrapping and exploration probability
+
+
+    robot.GoHome()
+
+    robot.GoWork()
+
+    robot.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2])
+
 
     # def collection_thread():
     #     threadLock = threading.Lock()
@@ -71,7 +75,6 @@ if __name__ == '__main__':
     # --------------- Setup options ---------------
     parser.add_argument('--obj_mesh_dir', dest='obj_mesh_dir', action='store', default='objects/blocks',                  help='directory containing 3D mesh files (.obj) of objects to be added to simulation')
     parser.add_argument('--num_obj', dest='num_obj', type=int, action='store', default=10,                                help='number of objects to add to simulation')
-    parser.add_argument('--test_preset_file', dest='test_preset_file', action='store', default='test-10-obj-01.txt')
 
     # Run main program with specified arguments
     args = parser.parse_args()
