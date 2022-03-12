@@ -39,7 +39,7 @@ def main(args):
 
     robot.GoWork()
 
-    robot.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2])
+    robot.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2], vel=0.005)
 
 
     # def collection_thread():
