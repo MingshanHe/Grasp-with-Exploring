@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-filename = r'/home/robot/explore_grasp_ws/logs/2022-03-12@15-36-58/data/force-sensor-data/foce_data.csv'
+filename = r'/home/robot/explore_grasp_ws/logs/2022-03-12@16-28-51/data/force-sensor-data/foce_data.csv'
 force,torque,x = [],[],[]
 force_x = []
 force_y = []
@@ -17,5 +17,5 @@ with open(filename, 'r') as f:#1
         x.append(i)
         i+=1
 
-plt.plot(x, force_x)
+plt.plot(x, force_y)
 plt.show()
