@@ -37,7 +37,7 @@ class UR5E(Robot):
                                             [255, 157, 167]])/255.0 #pink
 
             # Read files in object mesh directory
-            self.obj_mesh_dir = 'simBindings/objects/blocks'
+            self.obj_mesh_dir = os.path.abspath('simBindings/objects/blocks')
             self.num_obj = 1
             self.mesh_list = os.listdir(self.obj_mesh_dir)
 
@@ -244,7 +244,7 @@ class UR5E(Robot):
             self.Detected = True
             return False
 
-    def Explore(self,vel=0.02):
+    def Explore(self, target_pose, vel=0.02):
         """
         Expore and Grasp
         """
