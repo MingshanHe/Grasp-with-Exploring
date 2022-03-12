@@ -1,5 +1,5 @@
 from urx.robot import Robot
-from utils import DataLogger
+from utils import Logger
 from utils import Filter
 from trainer import NeuralNetwork
 from vrep_api import vrep
@@ -37,7 +37,7 @@ class UR5E(Robot):
                                             [255, 157, 167]])/255.0 #pink
 
             # Read files in object mesh directory
-            self.obj_mesh_dir = 'simulation/objects/block'
+            self.obj_mesh_dir = 'simBindings/objects/blocks'
             self.num_obj = 1
             self.mesh_list = os.listdir(self.obj_mesh_dir)
 
@@ -113,7 +113,7 @@ class UR5E(Robot):
             for object_idx in range(len(self.obj_mesh_ind)):
                 curr_mesh_file = os.path.join(self.obj_mesh_dir, self.mesh_list[self.obj_mesh_ind[object_idx]])
 
-                curr_shape_name = 'block'
+                curr_shape_name =  'shape_%02d' % object_idx
                 drop_x = (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
                 drop_y = (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
                 # object_position = [drop_x, drop_y, 0.15]
