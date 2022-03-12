@@ -9,7 +9,23 @@ from torch.autograd import Variable
 
 class Filter():
     def __init__(self):
-        
+        self.OldData = None
+        self.NewData = None
+        self.Initial = False
+
+    def LowPassFilter(self, data, filterParam=0.2):
+        if not (self.Initial):
+            self.OldData = data
+            self.Initial = True
+            return data
+        else:
+            self.NewData = data
+            return_ = []
+            for i in range(len(self.NewData)):
+                return_.append((1-filterParam)*self.OldData[i] + self.NewData[i])
+            self.OldData = data
+            # print(return_)
+            return return_
 # Get rotation matrix from euler angles
 def euler2rotm(theta):
     R_x = np.array([[1,         0,                  0                   ],
