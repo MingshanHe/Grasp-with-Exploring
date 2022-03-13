@@ -80,9 +80,6 @@ class NeuralNetwork():
 
         # return (pos_x, pos_y)
 
-    def backprop(self, x, y):
-        return 1
-
     def cost_derivative(self, output_activations, y):
         """
         Return the vector of partial derivatives
