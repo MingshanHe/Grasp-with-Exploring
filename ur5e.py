@@ -73,13 +73,14 @@ class UR5E(Robot):
 
             #? Initialize data logger
             logging_directory = os.path.abspath('logs')
-            self.logger = Logger(logging_directory)
+            self.datalogger = Logger(logging_directory)
 
             #? Initialize filter
             self.filter = Filter()
 
             self.force_data = []
             self.torque_data = []
+            self.Detected = False
         else:
             self.gripper_close()
             Robot.__init__(self, host, use_rt, use_simulation)
@@ -96,7 +97,8 @@ class UR5E(Robot):
             self.Monitor = Robot.get_realtime_monitor(self)
 
             # Create Class
-            self.datalogger = DataLogger()
+            logging_directory = os.path.abspath('logs')
+            self.datalogger = Logger(logging_directory)
             self.filter = Filter()
             self.nn = NeuralNetwork()
 
@@ -223,26 +225,56 @@ class UR5E(Robot):
         Let the Robot move to
         the input pose data
         """
-        Robot.movel(self, pose, acc=0.01, vel=0.05)
-        time.sleep(2)
-        self.gripper_close()
-        time.sleep(2)
+        if self.use_sim:
+            sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+            sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+            # Compute gripper position and linear movement increments
+            move_direction = np.asarray([pose[0] - UR5_target_position[0], pose[1] - UR5_target_position[1], pose[2] - UR5_target_position[2]])
+            move_magnitude = np.linalg.norm(move_direction)
+            move_step = 0.05*move_direction/move_magnitude
+            num_move_steps = max(int(np.floor((move_direction[0]+1e-5)/(move_step[0]+1e-5))),
+                                int(np.floor((move_direction[1]+1e-5)/(move_step[1]+1e-5))),
+                                int(np.floor((move_direction[2]+1e-5)/(move_step[2]+1e-5))))
+
+            # Simultaneously move and rotate gripper
+            for step_iter in range(num_move_steps):
+                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(pose[0],pose[1],pose[2]),vrep.simx_opmode_blocking)
+            time.sleep(1)
+        else:
+            Robot.movel(self, pose, acc=0.01, vel=0.05)
+            time.sleep(2)
+            self.gripper_close()
+            time.sleep(2)
 
     def DetectObject(self):
         """
         Check the tcp_force and
         return if detect the object
         """
-        self.tcp_Force = self.Monitor.tcf_force()
-        self.tcp_Force = self.filter.LowPassFilter(self.tcp_Force)
-
-        # self.tcp_Velocity = self.Monitor.tcp_Velocity
-        if((np.fabs(self.tcp_Force[0]) < 1.0)|(np.fabs(self.tcp_Force[1]) < 1.0)):
-            return True
+        if self.use_sim:
+            sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
+            forceVector = self.filter.LowPassFilter(forceVector)
+            # Output the force of XYZ
+            self.force_data.append(forceVector)
+            if((np.fabs(forceVector[0]) < 2.5)|(np.fabs(forceVector[1]) < 2.5)):
+                return True
+            else:
+                self.datalogger.save_force_data(forceVector)
+                self.Detected = True
+                return False
         else:
-            self.datalogger.save_tcp_force(self.tcp_Force)
-            self.Detected = True
-            return False
+            self.tcp_Force = self.Monitor.tcf_force()
+            self.tcp_Force = self.filter.LowPassFilter(self.tcp_Force)
+
+            # self.tcp_Velocity = self.Monitor.tcp_Velocity
+            if((np.fabs(self.tcp_Force[0]) < 1.0)|(np.fabs(self.tcp_Force[1]) < 1.0)):
+                return True
+            else:
+                self.datalogger.save_force_data(self.tcp_Force)
+                self.Detected = True
+                return False
 
     def Explore(self, target_pose, vel=0.02):
         """
@@ -272,17 +304,21 @@ class UR5E(Robot):
             for step_iter in range(max(num_move_steps, num_rotate_steps)):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                 vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
-                sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
-                forceVector = self.filter.LowPassFilter(forceVector)
-                # Output the force of XYZ
-                self.force_data.append(forceVector)
-                print(forceVector)
+                if not self.DetectObject() :
+                    self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), 0.3))
+                    break
                 # Output the torque of XYZ
                 # print(torqueVector)
-            self.logger.save_force_data(self.force_data)
-            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(target_pose[0],target_pose[1],target_pose[2]),vrep.simx_opmode_blocking)
-            vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (target_pose[3],target_pose[4],target_pose[5]), vrep.simx_opmode_blocking)
-            time.sleep(1)
+            if self.Detected:
+                print("Need to add grasp.")
+                #TODO: Add Neural Network
+                self.Grasp((0.0, 0.0, 0.1), np.pi/2)
+            else:
+                print("No Object...")
+                self.logger.save_force_data(self.force_data)
+                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(target_pose[0],target_pose[1],target_pose[2]),vrep.simx_opmode_blocking)
+                vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (target_pose[3],target_pose[4],target_pose[5]), vrep.simx_opmode_blocking)
+                time.sleep(1)
         else:
             while (self.DetectObject()):
                 # Force = self.Monitor.tcf_force()
@@ -304,27 +340,33 @@ class UR5E(Robot):
         """
         Grasp Strategy
         """
+        if self.use_sim:
+            self.gripper_open()
 
-        Robot.back(self, 0.2, acc=0.02, vel=0.1)
-        time.sleep(1)
+            time.sleep(1)
 
-        trans = Robot.get_pose(self)  # get current transformation matrix (tool to base)
-        trans.pos.x -= pos_data[0]
-        trans.pos.y -= pos_data[1]
-        trans.orient.rotate_zb(ori_data)
-        Robot.set_pose(self,trans, acc=0.1, vel=0.1)  # apply the new pose
-        time.sleep(1)
+            # self.Go((pos_data[0], pos_data[1], pos_data[2], ori_data))
+        else:
+            Robot.back(self, 0.2, acc=0.02, vel=0.1)
+            time.sleep(1)
 
-        self.gripper_open()
-        time.sleep(1)
+            trans = Robot.get_pose(self)  # get current transformation matrix (tool to base)
+            trans.pos.x -= pos_data[0]
+            trans.pos.y -= pos_data[1]
+            trans.orient.rotate_zb(ori_data)
+            Robot.set_pose(self,trans, acc=0.1, vel=0.1)  # apply the new pose
+            time.sleep(1)
 
-        Robot.back(self,-0.2, acc=0.01, vel=0.05)
-        time.sleep(2)
+            self.gripper_open()
+            time.sleep(1)
 
-        self.gripper_close()
-        time.sleep(1)
+            Robot.back(self,-0.2, acc=0.01, vel=0.05)
+            time.sleep(2)
 
-        Robot.back(self, 0.2, acc=0.02, vel=0.1)
+            self.gripper_close()
+            time.sleep(1)
+
+            Robot.back(self, 0.2, acc=0.02, vel=0.1)
 
     def gripper_open(self):
         """
