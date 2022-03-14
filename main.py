@@ -14,14 +14,16 @@ def main(args):
     host_ip = args.host_ip
     use_sim = args.use_sim
     if use_sim:
-        #? Initialize pick-and-place system (camera and robot)
-        ur5e = UR5E(host_ip,use_simulation=True)
+        for i in range(100):
+            print('%s iteration: %d\n' % ('Training', i))
+            #? Initialize pick-and-place system (camera and robot)
+            ur5e = UR5E(host_ip,use_simulation=True)
 
-        ur5e.GoHome()
+            ur5e.GoHome()
 
-        ur5e.GoWork()
+            ur5e.GoWork()
 
-        ur5e.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2], vel=0.005)
+            ur5e.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2], vel=0.005)
     else:
         ur5e = UR5E(host_ip,use_simulation=False)
 
