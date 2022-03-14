@@ -11,15 +11,17 @@ class NeuralNetwork():
         self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
-    def SGD(self, training_data, epochs, mini_batch_size, eta, test_data=None):
+
+    def SGD(self, training_data, mini_batch_size, eta, test_data=None, epochs=1):
+        self.forward(training_data)
         if test_data: n_test = len(test_data)
         n = len(training_data)
         for j in range(epochs):
-            np.random.shuffle(training_data)
-            mini_batches = [
-                training_data[k:k+mini_batch_size]
-                for k in range(0, n, mini_batch_size)
-            ]
+            # np.random.shuffle(training_data)
+            # mini_batches = [
+            #     training_data[k:k+mini_batch_size]
+            #     for k in range(0, n, mini_batch_size)
+            # ]
             for minibatch in mini_batches:
                 self.update_mini_batch(mini_batch, eta)
 
@@ -39,25 +41,38 @@ class NeuralNetwork():
             self.biases     = [b-(eta/len(mini_batch))*nb for b, nb in zip(self.biases, nabla_b)]
             self.weights    = [w-(eta/len(mini_batch))*nw for w, nw in zip(self.weights, nabla_w)]
 
+    def update(self, input, output):
+        nabla_b = [np.zeros(b.shape) for b in self.biases]
+        nabla_w = [np.zeros(w.shape) for w in self.weights]
+        delta_nabla_b, delta_nabla_w = self.backprop(input, output)
+        nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
+        nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
+        print("Network Biases: ")
+        print(self.biases)
+        print("Network Weights: ")
+        print(self.weights)
+        self.biases     = [b-0.1*nb for b, nb in zip(self.biases, nabla_b)]
+        self.weights    = [w-0.1*nw for w, nw in zip(self.weights, nabla_w)]
+
     def backprop(self, input, output):
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
 
-        activation = x
-        activations = [x]
-        zs - []
+        activation = input
+        activations = [input]
+        zs = []
         for b, w in zip(self.biases, self.weights):
             z = np.dot(w, activation) + b
             zs.append(z)
-            activation = sigmoid(z)
+            activation = self.sigmoid(z)
             activations.append(activation)
 
-        delta = self.cost_derivative(activations[-1], output) * sigmoid_prime(zs[-1])
+        delta = self.cost_derivative(activations[-1], output) * self.sigmoid_prime(zs[-1])
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, np.asarray(activations[-2]).T)
         for l in range(2, self.num_layers):
             z = zs[-l]
-            sp = sigmoid_prime(z)
+            sp = self.sigmoid_prime(z)
             delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
             nabla_b[-l] = delta
             nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
@@ -66,19 +81,10 @@ class NeuralNetwork():
     def forward(self, data):
         try:
             for b, w in zip(self.biases, self.weights):
-                a = self.sigmoid(np.dot(w, data)+b)
-            return a
+                data = self.sigmoid(np.dot(w, data)+b)
+            return data
         except:
             print("Layer Error.")
-        # self.force[0][0] = force[0]
-        # self.force[0][1] = force[1]
-        # if not (len(data) == self.sizes[0]):
-        #     print("")
-
-        # pos_x = np.dot(self.force, self.w_x) + self.b[0]
-        # pos_y = np.dot(self.force, self.w_y) + self.b[1]
-
-        # return (pos_x, pos_y)
 
     def cost_derivative(self, output_activations, y):
         """
@@ -92,8 +98,8 @@ class NeuralNetwork():
 
     def sigmoid(self,val):
         """The sigmoid function."""
-        return 1.0/(1.0+np.exp(-val))
+        return 1.0/(1.0+np.exp(-val)) - 0.5
 
     def sigmoid_prime(self,val):
         """Derivative of the sigmoid function."""
-        return sigmoid(val)*(1-sigmoid(val))
+        return self.sigmoid(val)*(1-self.sigmoid(val))
