@@ -47,10 +47,10 @@ class NeuralNetwork():
         delta_nabla_b, delta_nabla_w = self.backprop(input, output)
         nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
         nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        print("Network Biases: ")
-        print(self.biases)
-        print("Network Weights: ")
-        print(self.weights)
+        # print("Network Biases: ")
+        # print(self.biases)
+        # print("Network Weights: ")
+        # print(self.weights)
         self.biases     = [b-0.1*nb for b, nb in zip(self.biases, nabla_b)]
         self.weights    = [w-0.1*nw for w, nw in zip(self.weights, nabla_w)]
 
