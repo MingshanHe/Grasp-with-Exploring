@@ -12,7 +12,7 @@ class Logger():
         timestamp_value = datetime.datetime.fromtimestamp(timestamp)
 
         self.base_directory = os.path.join(logging_directory, timestamp_value.strftime('%Y-%m-%d@%H-%M-%S'))
-        print('Creating data logging session: %s' % (self.base_directory))
+        # print('Creating data logging session: %s' % (self.base_directory))
 
         self.force_sensor_data_directory = os.path.join(self.base_directory, 'data', 'force-sensor-data')
         if not os.path.exists(self.force_sensor_data_directory):
