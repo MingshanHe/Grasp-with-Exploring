@@ -1,3 +1,5 @@
+from logging import error
+from turtle import pos
 from urx.robot import Robot
 from utils import Logger
 from utils import Filter
@@ -17,8 +19,19 @@ import os
 
 
 class UR5E(Robot):
-    def __init__(self, host, use_rt=False, use_simulation=False):
+    def __init__(self, host, use_rt=False, use_simulation=False, train_axis='x y'):
         self.use_sim = use_simulation
+        self.train_axis = train_axis
+
+        if (self.train_axis == 'x y'):
+            print("[SETTING PARAM INFO]: Training in both 'X' and 'Y' axis.")
+        elif (self.train_axis == 'x'):
+            print("[SETTING PARAM INFO]: Training in only 'X' axis.")
+        elif (self.train_axis =='y'):
+            print("[SETTING PARAM INFO]: Training in only 'Y' axis.")
+        else:
+            error("Wrong Training Axis.")
+
         if self.use_sim:
             # Setup some params
             self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]])
@@ -65,7 +78,7 @@ class UR5E(Robot):
                 print('Failed to connect to simulation (V-REP remote API server). Exiting.')
                 exit()
             else:
-                print('Connected to simulation.')
+                print('[ENVIRONMENT STATE]: Connected to simulation.')
                 self.restart_sim()
 
             # Add objects to simulation environment
@@ -78,11 +91,17 @@ class UR5E(Robot):
             self.datalogger = Logger(logging_directory)
 
             #? Initialize filter
-            self.filter = Filter()
+            self.forceFilter = Filter()
+            self.torqueFilter = Filter()
 
             self.force_data = []
             self.torque_data = []
             self.Detected = False
+
+            # grasp_pose = grasp_predict_pose + current_pose
+            self.grasp_predict_pose = None
+            self.grasp_pose = [0.0, 0.0, 0.0]
+            self.grasp_param = 0.1
         else:
             self.gripper_close()
             Robot.__init__(self, host, use_rt, use_simulation)
@@ -101,7 +120,8 @@ class UR5E(Robot):
             # Create Class
             logging_directory = os.path.abspath('logs')
             self.datalogger = Logger(logging_directory)
-            self.filter = Filter()
+            self.forceFilter = Filter()
+            self.torqueFilter = Filter()
             self.nn = NeuralNetwork()
 
             self.tcp_Force = None
@@ -133,6 +153,7 @@ class UR5E(Robot):
                 curr_shape_handle = ret_ints[0]
                 self.object_handles.append(curr_shape_handle)
             time.sleep(2)
+
     def restart_sim(self):
         if self.use_sim:
             sim_ret, self.UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
@@ -148,6 +169,7 @@ class UR5E(Robot):
                 vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
                 time.sleep(1)
                 sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
+
     def GoHome(self):
         """
         Let the Robot move to
@@ -250,10 +272,11 @@ class UR5E(Robot):
                                 int(np.floor((rotate_direction[2]+1e-10)/(rotate_step[2]+1e-10))))
 
             # Simultaneously move and rotate gripper
-            for step_iter in range(max(num_move_steps, num_rotate_steps)):
+            for step_iter in range(num_move_steps):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
-                vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + rotate_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + rotate_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + rotate_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
             vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(pose[0],pose[1],pose[2]),vrep.simx_opmode_blocking)
+            for step_iter in range(num_rotate_steps):
+                vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (pose[3], UR5_target_orientation[1] + rotate_step[1]*min(step_iter,num_rotate_steps), pose[5]), vrep.simx_opmode_blocking)
             vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (pose[3],pose[4],pose[5]), vrep.simx_opmode_blocking)
             time.sleep(1)
         else:
@@ -269,7 +292,8 @@ class UR5E(Robot):
         """
         if self.use_sim:
             sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
-            forceVector = self.filter.LowPassFilter(forceVector)
+            forceVector = self.forceFilter.LowPassFilter(forceVector)
+            torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
             # Output the force of XYZ
             if((np.fabs(forceVector[0]) < 2.0)|(np.fabs(forceVector[1]) < 2.0)):
                 self.force_data = forceVector
@@ -280,7 +304,7 @@ class UR5E(Robot):
                 return False
         else:
             self.tcp_Force = self.Monitor.tcf_force()
-            self.tcp_Force = self.filter.LowPassFilter(self.tcp_Force)
+            self.tcp_Force = self.forceFilter.LowPassFilter(self.tcp_Force)
 
             # self.tcp_Velocity = self.Monitor.tcp_Velocity
             if((np.fabs(self.tcp_Force[0]) < 1.0)|(np.fabs(self.tcp_Force[1]) < 1.0)):
@@ -328,22 +352,29 @@ class UR5E(Robot):
             # Check the Object to Grasp
             if self.Detected:
 
-                print("Need to add grasp.")
-
                 # Using forward to predict
-                grasp_pose = self.trainer.forward(np.asarray(([self.force_data[1]], [self.force_data[0]])))
+                self.grasp_predict_pose = self.trainer.forward(np.asarray(([self.force_data[1]], [self.force_data[0]])))
+
+                if (self.train_axis == 'x'):
+                    self.grasp_predict_pose[1] = 0.0
+                elif (self.train_axis=='y'):
+                    self.grasp_predict_pose[0] = 0.0
+                else:
+                    self.grasp_predict_pose = self.grasp_predict_pose
+                print("[PREDICT RESULT]: Trainer Predict Grasp Position: [{},{}]; Orientation: [{}]".format(self.grasp_predict_pose[0], self.grasp_predict_pose[1], self.grasp_predict_pose[2]))
 
                 # Read current pose (position & orientation)
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
                 sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
                 # Add Predict value to current pose
-                grasp_pose[0] = 0.01*grasp_pose[0] + UR5_target_position[0]
-                grasp_pose[1] = 0.01*grasp_pose[1] + UR5_target_position[1]
-                grasp_pose[2] = (np.pi)*grasp_pose[2]/0.5 + UR5_target_orientation[1]
-                self.Grasp(pos_data=(grasp_pose[0], grasp_pose[1], 0.1), ori_data=(np.pi/2, grasp_pose[2], np.pi/2))
+                self.grasp_pose[0] = self.grasp_param*self.grasp_predict_pose[0] + UR5_target_position[0]
+                self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
+                self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
+
+                self.Grasp(pos_data=(self.grasp_pose[0], self.grasp_pose[1], 0.1), ori_data=(np.pi/2, self.grasp_pose[2], np.pi/2))
             else:
-                print("No Object to Grasp")
+                print("[ENVIRONMENT STATE]: No Object to Grasp")
                 # self.logger.save_force_data(self.force_data)
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(target_pose[0],target_pose[1],target_pose[2]),vrep.simx_opmode_blocking)
                 vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (target_pose[3],target_pose[4],target_pose[5]), vrep.simx_opmode_blocking)
@@ -371,7 +402,7 @@ class UR5E(Robot):
         Grasp Strategy
         """
         if self.use_sim:
-
+            print("[PREDICT RESULT]: Desired Grasp Position: [{}, {}], Orientation: [{}].".format(pos_data[0], pos_data[1], ori_data[1]))
             backdata, taskcontinue = self.DesiredPositionScore(pos_data)
             if taskcontinue:
                 # Open the Gripper
@@ -389,12 +420,26 @@ class UR5E(Robot):
 
                 time.sleep(1)
 
-                self.PredictedGraspScore()
+                grasp_score = self.PredictedGraspScore()
 
+                self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
+                np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
+                            self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
+                            self.grasp_predict_pose[2]+grasp_score[2])))
                 time.sleep(1)
 
                 # Close the Gripper
                 gripper_fully_closed = self.gripper_close()
+
+                if gripper_fully_closed:
+                    print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
+                    self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
+                    np.asarray((self.grasp_predict_pose[0]/self.grasp_param+np.random.rand()-0.5,
+                                self.grasp_predict_pose[1]/self.grasp_param+np.random.rand()-0.5,
+                                self.grasp_predict_pose[2]+grasp_score[2])))
+                else:
+                    print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
+
 
                 time.sleep(1)
                 # Pick the object up
@@ -404,7 +449,7 @@ class UR5E(Robot):
                 print("out of workspace limit, need to backprob to modify the params.")
                 # print(backdata)
                 # print("force_data: [{}, {}]".format(self.force_data[0], self.force_data[1]))
-                self.trainer.update(np.asarray(([-14], [-1])), np.asarray(([backdata[0]], [backdata[1]])))
+                # self.trainer.update(np.asarray(([-14], [-1])), np.asarray(([backdata[0]], [backdata[1]])))
         else:
             Robot.back(self, 0.2, acc=0.02, vel=0.1)
             time.sleep(1)
@@ -430,7 +475,7 @@ class UR5E(Robot):
     def DesiredPositionScore(self, data):
         backdata = []
         task_continue = True
-        print("Desired Grasp Position: [{}, {}]".format(data[0], data[1]))
+
         if (data[0] > self.workspace_limits[0][1]):
             backdata.append(-10)
             task_continue = False
@@ -451,14 +496,26 @@ class UR5E(Robot):
         return backdata, task_continue
 
     def PredictedGraspScore(self):
-        # TODO: Score the Grasp pose
         sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
-        forceVector = self.filter.LowPassFilter(forceVector)
-        print(forceVector)
-        print(torqueVector)
-        # if (np.fabs(forceVector[2]) > 8):
-        #     print(forceVector)
-        grasp_score = 0
+        forceVector = self.forceFilter.LowPassFilter(forceVector)
+        torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
+
+        grasp_score = [0.0, 0.0, 0.0]
+
+        if (np.fabs(forceVector[2]) > 8):
+            print("[ITERATION RESULT]:  Need to change Angle")
+            grasp_score[2] = np.random.rand() - 0.5
+        else:
+            print("[ITERATION RESULT]: Nice Grasp Angle.")
+        if (torqueVector[1] < -1):
+            print("[ITERATION RESULT]: Need to change position.")
+            grasp_score[0] = - np.random.rand()/2
+        elif (torqueVector[1] > 1):
+            print("[ITERATION RESULT]: Need to change position.")
+            grasp_score[0] = np.random.rand()/2
+        else:
+            print("[ITERATION RESULT]: Nice Grasp Position.")
+
         return grasp_score
 
     def gripper_open(self):
