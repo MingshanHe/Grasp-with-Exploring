@@ -9,3 +9,8 @@
 4. problem:
     1) force/torque sensor data error
     2) 
+
+## Requirement
+pip3 install math3d
+
+'python3 main.py --use_sim --train_axis 'x' --iterations 100'
