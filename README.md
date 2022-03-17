@@ -12,5 +12,8 @@
 
 ## Requirement
 pip3 install math3d
-
+* Training iterations
+* Training axis
+* TODO: Training Score
+* TODO: Training ...
 'python3 main.py --use_sim --train_axis 'x' --iterations 100'
