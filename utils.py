@@ -6,7 +6,9 @@ import numpy as np
 class Logger():
 
     def __init__(self, logging_directory):
-
+        """
+        Logger Class: Saving Data
+        """
         # Create directory to save data
         timestamp = time.time()
         timestamp_value = datetime.datetime.fromtimestamp(timestamp)
@@ -25,6 +27,9 @@ class Logger():
 
 class Filter():
     def __init__(self):
+        """
+        Filter Class: Filter data
+        """
         self.OldData = None
         self.NewData = None
         self.Initial = False
