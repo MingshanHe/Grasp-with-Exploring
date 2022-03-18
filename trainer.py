@@ -42,6 +42,10 @@ class NeuralNetwork():
             self.weights    = [w-(eta/len(mini_batch))*nw for w, nw in zip(self.weights, nabla_w)]
 
     def update(self, input, output):
+        """
+        Update: using input and output data
+        update the neural network
+        """
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         delta_nabla_b, delta_nabla_w = self.backprop(input, output)
@@ -55,6 +59,9 @@ class NeuralNetwork():
         self.weights    = [w-0.1*nw for w, nw in zip(self.weights, nabla_w)]
 
     def backprop(self, input, output):
+        """
+        update the params in network
+        """
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
 
