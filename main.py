@@ -22,9 +22,11 @@ def main(args):
             #? Initialize pick-and-place system (camera and robot)
             ur5e = UR5E(host_ip,use_simulation=True, train_axis=train_axis)
 
+            # Test:----------------------------------------------------
             # ur5e.Go((-0.276, 0.0, 0.04, np.pi/2, np.pi/2, np.pi/2))
             # ur5e.Go((-0.276, 0.0, 0.04, np.pi/2, np.pi/3, np.pi/2))
             # ur5e.Go((-0.276, 0.0, 0.04, np.pi/2, -np.pi/3, np.pi/2))
+            # ---------------------------------------------------------
 
             ur5e.GoHome()
 
