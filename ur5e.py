@@ -20,6 +20,11 @@ import os
 
 class UR5E(Robot):
     def __init__(self, host, use_rt=False, use_simulation=False, train_axis='x y'):
+        """
+        UR5E Class: Control the Robot
+        CoppeliaSim(V-rep): vrep-api in Simulation
+        urx(third party package): urx in Real World
+        """
         self.use_sim = use_simulation
         self.train_axis = train_axis
 
@@ -130,6 +135,10 @@ class UR5E(Robot):
             time.sleep(0.2)
 
     def add_objects(self):
+        """
+        Add random object automously
+        Only in Simulation
+        """
         if self.use_sim:
             # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
             self.object_handles = []
@@ -155,6 +164,9 @@ class UR5E(Robot):
             time.sleep(2)
 
     def restart_sim(self):
+        """
+        Restart the simulation
+        """
         if self.use_sim:
             sim_ret, self.UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
             sim_ret, self.Sensor_handle = vrep.simxGetObjectHandle(self.sim_client, 'UR5_connection', vrep.simx_opmode_blocking)
@@ -473,6 +485,9 @@ class UR5E(Robot):
             Robot.back(self, 0.2, acc=0.02, vel=0.1)
 
     def DesiredPositionScore(self, data):
+        """
+        Score the desired position
+        """
         backdata = []
         task_continue = True
 
@@ -496,6 +511,9 @@ class UR5E(Robot):
         return backdata, task_continue
 
     def PredictedGraspScore(self):
+        """
+        Score the predicted position
+        """
         sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
         forceVector = self.forceFilter.LowPassFilter(forceVector)
         torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
