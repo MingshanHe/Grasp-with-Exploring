@@ -12,23 +12,24 @@ class NeuralNetwork():
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
 
-    def SGD(self, training_data, mini_batch_size, eta, test_data=None, epochs=1):
-        self.forward(training_data)
-        if test_data: n_test = len(test_data)
-        n = len(training_data)
-        for j in range(epochs):
-            # np.random.shuffle(training_data)
-            # mini_batches = [
-            #     training_data[k:k+mini_batch_size]
-            #     for k in range(0, n, mini_batch_size)
-            # ]
-            for minibatch in mini_batches:
-                self.update_mini_batch(mini_batch, eta)
+        self.heatmap = np.zeros([500, 500])
 
-            if test_data:
-                print("Epoch {0}: {1}/{2}".format(j, self.evaluate(test_data), n_test))
-            else:
-                print("Epoch {0} complete".format(j))
+    def upate_heatmap(self, workspace_limits, position, force):
+        map_y = int((position[1] - workspace_limits[1][0]) * 500/np.fabs(workspace_limits[1][0]-workspace_limits[1][1]))
+        map_x = int((position[0] - workspace_limits[0][0]) * 500/np.fabs(workspace_limits[0][0]-workspace_limits[0][1]))
+
+        for i in range(30):
+            for j in range(30):
+                self.heatmap[map_x+i][map_y+j] = 55
+
+        for i in range(20):
+            for j in range(20):
+                self.heatmap[map_x+i][map_y+j] = 155
+
+        for i in range(10):
+            for j in range(10):
+                self.heatmap[map_x+i][map_y+j] = 255
+        return self.heatmap
 
     def update_mini_batch(self, mini_batch, eta):
         nabla_b = [np.zeros(b.shape) for b in self.biases]
