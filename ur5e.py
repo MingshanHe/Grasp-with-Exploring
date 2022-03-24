@@ -11,13 +11,6 @@ import time
 import struct
 import os
 
-
-
-# class Robot(object):
-#     def __init__(self, obj_mesh_dir, num_obj, workspace_limits):
-
-
-
 class UR5E(Robot):
     def __init__(self, host, use_rt=False, use_simulation=False, train_axis='x y'):
         """
@@ -27,6 +20,7 @@ class UR5E(Robot):
         """
         self.use_sim = use_simulation
         self.train_axis = train_axis
+
 
         if (self.train_axis == 'x y'):
             print("[SETTING PARAM INFO]: Training in both 'X' and 'Y' axis.")
@@ -39,9 +33,11 @@ class UR5E(Robot):
 
         if self.use_sim:
             # Setup some params
-            self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]])
-            self.home_pose = [-0.276, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
-            self.workstart_pose = [-0.276, 0.0, 0.04, np.pi/2, 0.0, np.pi/2]
+            self.workspace_limits = np.asarray([[-0.775, -0.275], [-0.225, 0.225], [-0.0001, 0.4]])
+            self.home_pose = [-0.275, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
+            self.workstart_pose = [-0.275, 0.0, 0.02, np.pi/2, 0.0, np.pi/2]
+            self.pre_grasp_high = 0.1
+            self.grasp_high = 0.02
             # Define colors for object meshes (Tableau palette)
             self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
                                             [89.0, 161.0, 79.0], # green
@@ -149,8 +145,10 @@ class UR5E(Robot):
                 curr_shape_name =  'shape_%02d' % object_idx
                 drop_x = (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
                 drop_y = (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
+                #? Drop in Random position and orientation
                 # object_position = [drop_x, drop_y, 0.15]
                 # object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
+                #? Drop in Fixed position and orientation
                 object_position = [-0.5, 0, 0.15]
                 object_orientation = [np.pi/2, 0, 0]
 
@@ -303,7 +301,8 @@ class UR5E(Robot):
         return if detect the object
         """
         if self.use_sim:
-            sim_ret,state,forceVector,torqueVector=vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
+            sim_ret,state,forceVector,torqueVector = vrep.simxReadForceSensor(self.sim_client,self.Sensor_handle,vrep.simx_opmode_streaming)
+            sim_ret, linear_vel, angular_vel = vrep.simxGetObjectVelocity(self.sim_client, self.UR5_target_handle, vrep.simx_opmode_streaming)
             forceVector = self.forceFilter.LowPassFilter(forceVector)
             torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
             # Output the force of XYZ
@@ -326,7 +325,7 @@ class UR5E(Robot):
                 self.Detected = True
                 return False
 
-    def Explore(self, target_pose, vel=0.02):
+    def Explore(self, target_pose, vel=0.01):
         """
         Expore and Grasp
         """
@@ -334,6 +333,7 @@ class UR5E(Robot):
             # Pre: close the gripper
             self.gripper_close()
 
+            # Get Current end state
             sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
             sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
@@ -358,7 +358,8 @@ class UR5E(Robot):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                 vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
                 if not self.DetectObject() :
-                    self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), 0.3, np.pi/2, 0.0, np.pi/2))
+                    # Touch something and z+ to pre grasp
+                    self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), self.pre_grasp_high, np.pi/2, 0.0, np.pi/2))
                     break
 
             # Check the Object to Grasp
@@ -384,7 +385,11 @@ class UR5E(Robot):
                 self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
                 self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
 
-                self.Grasp(pos_data=(self.grasp_pose[0], self.grasp_pose[1], 0.1), ori_data=(np.pi/2, self.grasp_pose[2], np.pi/2))
+                # Save the heatmap
+                heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data)
+                self.datalogger.save_heatmaps(heatmap)
+
+                self.Grasp(pos_data=(self.grasp_pose[0], self.grasp_pose[1]), ori_data=(np.pi/2, self.grasp_pose[2], np.pi/2))
             else:
                 print("[ENVIRONMENT STATE]: No Object to Grasp")
                 # self.logger.save_force_data(self.force_data)
@@ -423,12 +428,12 @@ class UR5E(Robot):
                 time.sleep(1)
 
                 # Go to the position and orientation above the object
-                self.Go((pos_data[0], pos_data[1], 0.3, ori_data[0], ori_data[1], ori_data[2]))
+                self.Go((pos_data[0], pos_data[1], 0.1, ori_data[0], ori_data[1], ori_data[2]))
 
                 time.sleep(1)
 
                 # Go to grasp
-                self.Go((pos_data[0], pos_data[1], 0.04, ori_data[0], ori_data[1], ori_data[2]))
+                self.Go((pos_data[0], pos_data[1], self.grasp_high, ori_data[0], ori_data[1], ori_data[2]))
 
                 time.sleep(1)
 
@@ -455,13 +460,11 @@ class UR5E(Robot):
 
                 time.sleep(1)
                 # Pick the object up
-                self.Go((pos_data[0], pos_data[1], 0.3, ori_data[0], ori_data[1], ori_data[2]))
+                self.Go((pos_data[0], pos_data[1], self.pre_grasp_high, ori_data[0], ori_data[1], ori_data[2]))
 
             else:
                 print("out of workspace limit, need to backprob to modify the params.")
-                # print(backdata)
-                # print("force_data: [{}, {}]".format(self.force_data[0], self.force_data[1]))
-                # self.trainer.update(np.asarray(([-14], [-1])), np.asarray(([backdata[0]], [backdata[1]])))
+
         else:
             Robot.back(self, 0.2, acc=0.02, vel=0.1)
             time.sleep(1)
@@ -486,7 +489,7 @@ class UR5E(Robot):
 
     def DesiredPositionScore(self, data):
         """
-        Score the desired position
+        Score the desired position: If it is in the workspace limits
         """
         backdata = []
         task_continue = True
