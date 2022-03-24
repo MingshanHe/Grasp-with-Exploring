@@ -307,7 +307,7 @@ class UR5E(Robot):
             forceVector = self.forceFilter.LowPassFilter(forceVector)
             torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
             # Output the force of XYZ
-            if((np.fabs(forceVector[0]) < 2.0)|(np.fabs(forceVector[1]) < 2.0)):
+            if((np.fabs(forceVector[0]) < 3.0)&(np.fabs(forceVector[1]) < 3.0)):
                 self.force_data = forceVector
                 return True
             else:
@@ -542,14 +542,10 @@ class UR5E(Robot):
         using the defined urscript
         """
         if self.use_sim:
-            gripper_motor_velocity = 0.5
-            gripper_motor_force = 20
-            sim_ret, RG2_gripper_handle = vrep.simxGetObjectHandle(self.sim_client, 'RG2_openCloseJoint', vrep.simx_opmode_blocking)
-            sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
-            vrep.simxSetJointForce(self.sim_client, RG2_gripper_handle, gripper_motor_force, vrep.simx_opmode_blocking)
-            vrep.simxSetJointTargetVelocity(self.sim_client, RG2_gripper_handle, gripper_motor_velocity, vrep.simx_opmode_blocking)
-            while gripper_joint_position < 0.03: # Block until gripper is fully open
-                sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
+            ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(
+                self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,
+                'GripperOpen',[0], [0.0], "false", bytearray(), vrep.simx_opmode_blocking)
+            gripper_fully_closed = False
         else:
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_socket.connect(("192.168.1.101", 30003))
@@ -565,20 +561,10 @@ class UR5E(Robot):
         using the defined urscript
         """
         if self.use_sim:
-            gripper_motor_velocity = -0.5
-            gripper_motor_force = 100
-            sim_ret, RG2_gripper_handle = vrep.simxGetObjectHandle(self.sim_client, 'RG2_openCloseJoint', vrep.simx_opmode_blocking)
-            sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
-            vrep.simxSetJointForce(self.sim_client, RG2_gripper_handle, gripper_motor_force, vrep.simx_opmode_blocking)
-            vrep.simxSetJointTargetVelocity(self.sim_client, RG2_gripper_handle, gripper_motor_velocity, vrep.simx_opmode_blocking)
+            ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(
+                self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,
+                'GripperClose',[0], [0.0], "false", bytearray(), vrep.simx_opmode_blocking)
             gripper_fully_closed = False
-            while gripper_joint_position > -0.045: # Block until gripper is fully closed
-                sim_ret, new_gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
-                # print(gripper_joint_position)
-                if new_gripper_joint_position >= gripper_joint_position:
-                    return gripper_fully_closed
-                gripper_joint_position = new_gripper_joint_position
-            gripper_fully_closed = True
         else:
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_socket.connect(("192.168.1.101", 30003))
