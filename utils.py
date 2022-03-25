@@ -63,17 +63,3 @@ class Filter():
             self.OldData = data
             # print(return_)
             return return_
-
-
-
-
-
-
-
-
-
-
-
-
-
-
