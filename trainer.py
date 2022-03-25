@@ -18,17 +18,32 @@ class NeuralNetwork():
         map_y = int((position[1] - workspace_limits[1][0]) * 500/np.fabs(workspace_limits[1][0]-workspace_limits[1][1]))
         map_x = int((position[0] - workspace_limits[0][0]) * 500/np.fabs(workspace_limits[0][0]-workspace_limits[0][1]))
 
-        for i in range(30):
-            for j in range(30):
-                self.heatmap[map_x+i][map_y+j] = 55
+        for i in range(100):
+            for j in range(100):
+                i_ = i-50
+                j_ = j-50
+                if ((force[1]*i_)+(force[0]*j_))>=0:
+                    if np.sqrt(i_**2+j_**2) <= 10:
+                        self.heatmap[map_x+i_][map_y+j_] = 255
+                    elif np.sqrt(i_**2+j_**2) <= 20:
+                        self.heatmap[map_x+i_][map_y+j_] = 200
+                    elif np.sqrt(i_**2+j_**2) <= 30:
+                        self.heatmap[map_x+i_][map_y+j_] = 100
+                    elif np.sqrt(i_**2+j_**2) <= 40:
+                        self.heatmap[map_x+i_][map_y+j_] = 50
+                    elif np.sqrt(i_**2+j_**2) <= 50:
+                        self.heatmap[map_x+i_][map_y+j_] = 25
+        # for i in range(30):
+        #     for j in range(30):
+        #         self.heatmap[map_x+i][map_y+j] = 55
 
-        for i in range(20):
-            for j in range(20):
-                self.heatmap[map_x+i][map_y+j] = 155
+        # for i in range(20):
+        #     for j in range(20):
+        #         self.heatmap[map_x+i][map_y+j] = 155
 
-        for i in range(10):
-            for j in range(10):
-                self.heatmap[map_x+i][map_y+j] = 255
+        # for i in range(10):
+        #     for j in range(10):
+        #         self.heatmap[map_x+i][map_y+j] = 255
         return self.heatmap
 
     def update_mini_batch(self, mini_batch, eta):
