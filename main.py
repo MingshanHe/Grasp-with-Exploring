@@ -32,7 +32,7 @@ def main(args):
 
             ur5e.GoWork()
 
-            ur5e.Explore(target_pose=[-0.724, 0.0, 0.04, np.pi/2, 0.0, np.pi/2], vel=0.005)
+            ur5e.Explore()
             print("--------------------------------------------------")
     else:
         ur5e = UR5E(host_ip,use_simulation=False, train_axis=train_axis)
