@@ -33,25 +33,28 @@ class UR5E(Robot):
 
         if self.use_sim:
             # Setup some params
-            self.workspace_limits = np.asarray([[-0.775, -0.275], [-0.225, 0.225], [-0.0001, 0.4]])
-            self.home_pose = [-0.275, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
-            self.workstart_pose = [[-0.275, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
-                                [-0.775, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
-                                [-0.500, -0.225, 0.1, np.pi/2, np.pi/2, np.pi/2],
-                                [-0.500, 0.225, 0.1, np.pi/2, np.pi/2, np.pi/2]]
+            self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [-0.0001, 0.4]])
+            self.home_pose = [-0.3, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
+            self.workstart_pose = [[-0.3, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
+                                [-0.7, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
+                                [-0.500, -0.2, 0.1, np.pi/2, np.pi/2, np.pi/2],
+                                [-0.500, 0.2, 0.1, np.pi/2, np.pi/2, np.pi/2]]
 
-            self.explore_start_pose = [[-0.275, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
-                                    [-0.775, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
-                                    [-0.500, -0.225, 0.02, np.pi/2, np.pi/2, np.pi/2],
-                                    [-0.500, 0.225, 0.02, np.pi/2, np.pi/2, np.pi/2]]
+            self.explore_start_pose = [[-0.3, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
+                                    [-0.7, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
+                                    [-0.5, -0.2, 0.02, np.pi/2, np.pi/2, np.pi/2],
+                                    [-0.5, 0.2, 0.02, np.pi/2, np.pi/2, np.pi/2]]
 
-            self.explore_end_pose = [[-0.775, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
-                                    [-0.275, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
-                                    [-0.500, 0.225, 0.02, np.pi/2, np.pi/2, np.pi/2],
-                                    [-0.500, -0.225, 0.02, np.pi/2, np.pi/2, np.pi/2]]
+            self.explore_end_pose = [[-0.7, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
+                                    [-0.3, 0.0, 0.02, np.pi/2, 0.0, np.pi/2],
+                                    [-0.5, 0.2, 0.02, np.pi/2, np.pi/2, np.pi/2],
+                                    [-0.5, -0.2, 0.02, np.pi/2, np.pi/2, np.pi/2]]
 
             self.pre_grasp_high = 0.1
             self.grasp_high = 0.02
+
+            self.detected_threshold = 3.0
+            self.detect_iterations  = 4
             # Define colors for object meshes (Tableau palette)
             self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
                                             [89.0, 161.0, 79.0], # green
@@ -320,10 +323,11 @@ class UR5E(Robot):
             forceVector = self.forceFilter.LowPassFilter(forceVector)
             torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
             # Output the force of XYZ
-            if((np.fabs(forceVector[0]) < 3.0)&(np.fabs(forceVector[1]) < 3.0)):
+            if((np.fabs(forceVector[0]) < self.detected_threshold)&(np.fabs(forceVector[1]) < self.detected_threshold)):
                 self.force_data = forceVector
                 return True
             else:
+                self.forceFilter.LowPassFilterClear()
                 self.datalogger.save_force_data(forceVector)
                 self.Detected = True
                 return False
@@ -344,7 +348,7 @@ class UR5E(Robot):
         Expore and Grasp
         """
         if self.use_sim:
-            for i in range(4):
+            for i in range(self.detect_iterations):
                 self. Go(self.explore_start_pose[i])
 
                 # Pre: close the gripper
@@ -366,19 +370,21 @@ class UR5E(Robot):
                 # Compute gripper orientation and rotation increments
                 rotate_direction = np.asarray([self.explore_end_pose[i][3] - UR5_target_orientation[0], self.explore_end_pose[i][4] - UR5_target_orientation[1], self.explore_end_pose[i][5] - UR5_target_orientation[2]])
                 rotate_magnitude = np.linalg.norm(rotate_direction)
-                rotate_step = 0.1*rotate_direction
-                print(rotate_direction)
-                num_rotate_steps = 10
+                rotate_step = 0.05*rotate_direction/rotate_magnitude
+                num_rotate_steps = max(int(np.floor((rotate_direction[0])/(rotate_step[0]+1e-10))),
+                                    int(np.floor((rotate_direction[1])/(rotate_step[1]+1e-10))),
+                                    int(np.floor((rotate_direction[2])/(rotate_step[2]+1e-10))))
 
                 # Simultaneously move and rotate gripper
                 for step_iter in range(max(num_move_steps, num_rotate_steps)):
                     vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
-                    vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + move_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + move_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + move_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
+                    vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + rotate_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + rotate_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + rotate_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
                     if not self.DetectObject() :
                         # Touch something and z+ to pre grasp
                         self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), self.pre_grasp_high, self.explore_start_pose[i][3], self.explore_start_pose[i][4],self.explore_start_pose[i][5]))
                         time.sleep(1)
                         break
+
                 # Check the Object to Grasp
                 if self.Detected:
                     # Read current pose (position & orientation)
@@ -386,7 +392,7 @@ class UR5E(Robot):
                     sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
                     # Save the heatmap
-                    heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data)
+                    heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
                     self.datalogger.save_heatmaps(heatmap)
 
                     # Using forward to predict
@@ -408,9 +414,11 @@ class UR5E(Robot):
                     # self.grasp_pose[0] = self.grasp_param*self.grasp_predict_pose[0] + UR5_target_position[0]
                     # self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
                     # self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
-
-                    self.Go(self.workstart_pose[i+1])
-
+                    if ((i+1) == self.detect_iterations):
+                        continue
+                    else:
+                        self.Go(self.workstart_pose[i+1])
+                        continue
                     # self.Grasp(pos_data=(self.grasp_pose[0], self.grasp_pose[1]), ori_data=(np.pi/2, self.grasp_pose[2], np.pi/2))
                 else:
                     print("[ENVIRONMENT STATE]: No Object to Grasp")
