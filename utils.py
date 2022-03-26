@@ -63,3 +63,8 @@ class Filter():
             self.OldData = data
             # print(return_)
             return return_
+
+    def LowPassFilterClear(self):
+        self.OldData = None
+        self.NewData = None
+        self.Initial = False
