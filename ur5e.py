@@ -3,7 +3,7 @@ from turtle import pos
 from urx.robot import Robot
 from utils import Logger
 from utils import Filter
-from trainer import NeuralNetwork
+from trainer import NeuralNetwork, Trainer
 from vrep_api import vrep
 import numpy as np
 import socket
@@ -103,7 +103,8 @@ class UR5E(Robot):
             self.add_objects()
 
             #? Initialize trainer
-            self.trainer = NeuralNetwork([2,4,3])
+            # self.trainer = NeuralNetwork([2,4,3])
+            self.trainer = Trainer(force_cpu=False)
             #? Initialize data logger
             logging_directory = os.path.abspath('logs')
             self.datalogger = Logger(logging_directory)
@@ -285,7 +286,7 @@ class UR5E(Robot):
             # Compute gripper position and linear movement increments
             move_direction = np.asarray([pose[0] - UR5_target_position[0], pose[1] - UR5_target_position[1], pose[2] - UR5_target_position[2]])
             move_magnitude = np.linalg.norm(move_direction)
-            move_step = 0.05*move_direction/move_magnitude
+            move_step = 0.01*move_direction/move_magnitude
             num_move_steps = max(int(np.floor((move_direction[0]+1e-10)/(move_step[0]+1e-10))),
                                 int(np.floor((move_direction[1]+1e-10)/(move_step[1]+1e-10))),
                                 int(np.floor((move_direction[2]+1e-10)/(move_step[2]+1e-10))))
@@ -380,20 +381,32 @@ class UR5E(Robot):
                     vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                     vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + rotate_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + rotate_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + rotate_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
                     if not self.DetectObject() :
+
+                        # Read current pose (position & orientation)
+                        sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+                        sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+                        # Save the heatmap
+                        self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
+                        self.datalogger.save_heatmaps(self.heatmap)
+
                         # Touch something and z+ to pre grasp
-                        self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), self.pre_grasp_high, self.explore_start_pose[i][3], self.explore_start_pose[i][4],self.explore_start_pose[i][5]))
+                        # self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), self.pre_grasp_high, self.explore_start_pose[i][3], self.explore_start_pose[i][4],self.explore_start_pose[i][5]))
+
+                        # Touch something and move to the start pose
+                        self.Go(self.workstart_pose[i])
                         time.sleep(1)
                         break
 
                 # Check the Object to Grasp
                 if self.Detected:
-                    # Read current pose (position & orientation)
-                    sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
-                    sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+                    # # Read current pose (position & orientation)
+                    # sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+                    # sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
-                    # Save the heatmap
-                    heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
-                    self.datalogger.save_heatmaps(heatmap)
+                    # # Save the heatmap
+                    # self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
+                    # self.datalogger.save_heatmaps(self.heatmap)
 
                     # Using forward to predict
                     # self.grasp_predict_pose = self.trainer.forward(np.asarray(([self.force_data[1]], [self.force_data[0]])))
@@ -415,7 +428,7 @@ class UR5E(Robot):
                     # self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
                     # self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
                     if ((i+1) == self.detect_iterations):
-                        continue
+                        break
                     else:
                         self.Go(self.workstart_pose[i+1])
                         continue
@@ -443,7 +456,9 @@ class UR5E(Robot):
                 else:
                     print("Predicted Position is out of the workspace limit.")
 
+    def Train(self):
 
+        return 1
     def Grasp(self, pos_data, ori_data):
         """
         Grasp Strategy
@@ -469,10 +484,10 @@ class UR5E(Robot):
 
                 grasp_score = self.PredictedGraspScore()
 
-                self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
-                np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
-                            self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
-                            self.grasp_predict_pose[2]+grasp_score[2])))
+                # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
+                # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
+                #             self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
+                #             self.grasp_predict_pose[2]+grasp_score[2])))
                 time.sleep(1)
 
                 # Close the Gripper
@@ -480,10 +495,10 @@ class UR5E(Robot):
 
                 if gripper_fully_closed:
                     print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
-                    self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
-                    np.asarray((self.grasp_predict_pose[0]/self.grasp_param+np.random.rand()-0.5,
-                                self.grasp_predict_pose[1]/self.grasp_param+np.random.rand()-0.5,
-                                self.grasp_predict_pose[2]+grasp_score[2])))
+                    # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
+                    # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+np.random.rand()-0.5,
+                    #             self.grasp_predict_pose[1]/self.grasp_param+np.random.rand()-0.5,
+                    #             self.grasp_predict_pose[2]+grasp_score[2])))
                 else:
                     print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
 
