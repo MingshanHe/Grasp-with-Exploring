@@ -162,6 +162,8 @@ class Trainer(object):
             print("CUDA is *NOT* detected. Runing CPU")
             self.use_cuda = False
 
+        self.heatmap = np.zeros([500, 500])
+
         # Fully convolutional Q network for deep reinforcement learning
         self.model = reinforcement_net(self.use_cuda)
         self.push_rewareds = None
@@ -320,3 +322,33 @@ class Trainer(object):
 
         best_pix_ind = np.unravel_index(np.argmax(grasp_predictions), grasp_predictions.shape)
         return best_pix_ind
+
+    def upate_heatmap(self, workspace_limits, position, force, current_angle):
+        map_y = int((position[1] - workspace_limits[1][0]) * 500/np.fabs(workspace_limits[1][0]-workspace_limits[1][1]))
+        map_x = int((position[0] - workspace_limits[0][0]) * 500/np.fabs(workspace_limits[0][0]-workspace_limits[0][1]))
+        tmp_fx = force[0] * np.cos(-current_angle) - force[1] * np.sin(-current_angle)
+        tmp_fy = force[0] * np.sin(-current_angle) + force[1] * np.cos(-current_angle)
+        force[0] = tmp_fx
+        force[1] = tmp_fy
+        for i in range(100):
+            for j in range(100):
+                i_ = i-50
+                j_ = j-50
+                if ((force[1]*i_)+(force[0]*j_))>=0:
+                    if np.sqrt(i_**2+j_**2) <= 10:
+                        if self.heatmap[map_x+i_][map_y+j_] < 255:
+                            self.heatmap[map_x+i_][map_y+j_] = 255
+                    elif np.sqrt(i_**2+j_**2) <= 20:
+                        if self.heatmap[map_x+i_][map_y+j_] < 200:
+                            self.heatmap[map_x+i_][map_y+j_] = 200
+                    elif np.sqrt(i_**2+j_**2) <= 30:
+                        if self.heatmap[map_x+i_][map_y+j_] < 100:
+                            self.heatmap[map_x+i_][map_y+j_] = 100
+                    elif np.sqrt(i_**2+j_**2) <= 40:
+                        if self.heatmap[map_x+i_][map_y+j_] < 50:
+                            self.heatmap[map_x+i_][map_y+j_] = 50
+                    elif np.sqrt(i_**2+j_**2) <= 50:
+                        if self.heatmap[map_x+i_][map_y+j_] < 25:
+                            self.heatmap[map_x+i_][map_y+j_] = 25
+
+        return self.heatmap
