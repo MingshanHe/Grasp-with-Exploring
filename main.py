@@ -33,6 +33,7 @@ def main(args):
             ur5e.GoWork()
 
             ur5e.Explore()
+
             print("--------------------------------------------------")
     else:
         ur5e = UR5E(host_ip,use_simulation=False, train_axis=train_axis)
