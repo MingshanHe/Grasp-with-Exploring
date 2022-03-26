@@ -45,7 +45,7 @@ class reinforcement_net(nn.Module):
         self.interm_feat = []
         self.output_prob = []
 
-    def forward(self, input_heat_data, is_volatile=False, specific_rotation=-1):
+    def forward(self, input_heatmap_data, is_volatile=False, specific_rotation=-1):
 
         if is_volatile:
             with torch.no_grad():
