@@ -163,6 +163,7 @@ class Trainer(object):
             self.use_cuda = False
 
         self.heatmap = np.zeros([500, 500])
+        self.heatmap_resolution = (0.4/500)
 
         # Fully convolutional Q network for deep reinforcement learning
         self.model = reinforcement_net(self.use_cuda)
@@ -207,7 +208,7 @@ class Trainer(object):
         input_heatmap_image = np.concatenate((heatmap_2x, heatmap_2x, heatmap_2x), axis=2)
 
         # Construct minibatch of size 1 (b, c, h, w)
-        input_heatmap_image.shape = (input_heatmap_image.shape[0], input_heatmap_image.shapep[1], input_heatmap_image.shape[2], 1)
+        input_heatmap_image.shape = (input_heatmap_image.shape[0], input_heatmap_image.shape[1], input_heatmap_image.shape[2], 1)
         input_heatmap_data = torch.from_numpy(input_heatmap_image.astype(np.float32)).permute(3,2,0,1)
 
         # Pass input data through model
@@ -216,9 +217,9 @@ class Trainer(object):
         # Return Q values (and remove extra padding)
         for rotate_idx in range(len(output_prob)):
             if rotate_idx == 0:
-                grasp_predictions = output_prob[rotate_idx][1].cpu().data.numpy()[:,0,int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2),int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2)]
+                grasp_predictions = output_prob[rotate_idx][0].cpu().data.numpy()[:,0,int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2),int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2)]
             else:
-                grasp_predictions = np.concatenate((grasp_predictions, output_prob[rotate_idx][1].cpu().data.numpy()[:,0,int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2),int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2)]), axis=0)
+                grasp_predictions = np.concatenate((grasp_predictions, output_prob[rotate_idx][0].cpu().data.numpy()[:,0,int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2),int(padding_width/2):int(heatmap_2x.shape[0]/2 - padding_width/2)]), axis=0)
 
         return grasp_predictions, state_feat
 
@@ -272,20 +273,21 @@ class Trainer(object):
         print('Training loss: %f' % (loss_value))
         self.optimizer.step()
 
-    def get_label_value(self, grasp_success, change_detected,):
+    def get_label_value(self, grasp_success):
 
         # Compute current reward
         current_reward = 0
-
+        future_reward = 0
         if grasp_success:
             current_reward = 1.0
-
-        # Compute future reward
-        if not change_detected and not grasp_success:
-            future_reward = 0
         else:
-            next_grasp_predictions, next_state_feat = self.forward(next_heatmap, is_volatile=True)
-            future_reward =  np.max(next_grasp_predictions)
+            future_reward = 0
+        # Compute future reward
+        # if not change_detected and not grasp_success:
+        #     future_reward = 0
+        # else:
+        #     next_grasp_predictions, next_state_feat = self.forward(next_heatmap, is_volatile=True)
+        #     future_reward =  np.max(next_grasp_predictions)
 
             # # Experiment: use Q differences
             # push_predictions_difference = next_push_predictions - prev_push_predictions
