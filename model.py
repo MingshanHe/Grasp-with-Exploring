@@ -49,8 +49,8 @@ class reinforcement_net(nn.Module):
 
         if is_volatile:
             with torch.no_grad():
-                output_prob = []
-                interm_feat = []
+                self.output_prob = []
+                self.interm_feat = []
 
                 # Apply rotations to images
                 for rotate_idx in range(self.num_rotations):
@@ -76,7 +76,7 @@ class reinforcement_net(nn.Module):
 
                     # Compute intermediate features
                     interm_grasp_feat = self.grasp_heat_trunk.features(rotate_heat)
-                    interm_feat.append(interm_grasp_feat)
+                    self.interm_feat.append(interm_grasp_feat)
 
                     # Compute sample grid for rotation AFTER branches
                     affine_mat_after = np.asarray([
@@ -90,13 +90,13 @@ class reinforcement_net(nn.Module):
                         flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False), interm_grasp_feat.data.size())
 
                     # Forward pass through branches, undo rotation on output predictions, upsample resuls
-                    output_prob.append([nn.Upsample(scale_factor=16, mode='bilinear').forward(F.grid_sample(self.graspnet(interm_grasp_feat), flow_grid_after, mode='nearest'))])
+                    self.output_prob.append([nn.Upsample(scale_factor=16, mode='bilinear').forward(F.grid_sample(self.graspnet(interm_grasp_feat), flow_grid_after, mode='nearest'))])
 
-            return output_prob, interm_feat
+            return self.output_prob, self.interm_feat
 
         else:
-            output_prob = []
-            interm_feat = []
+            self.output_prob = []
+            self.interm_feat = []
 
             # Apply rotations to images
             rotate_idx = specific_rotation
@@ -110,19 +110,19 @@ class reinforcement_net(nn.Module):
             affine_mat_before = torch.from_numpy(affine_mat_before).permute(2,0,1).float()
 
             if self.use_cuda:
-                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).cuda(), input_heat_data.size())
+                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).cuda(), input_heatmap_data.size())
             else:
-                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False), input_heat_data.size())
+                flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False), input_heatmap_data.size())
 
             # Rotate images clockwise
             if self.use_cuda:
-                rotate_heat = F.grid_sample(Variable(input_heat_data, volatile=True).cuda(), flow_grid_before, mode='nearest')
+                rotate_heat = F.grid_sample(Variable(input_heatmap_data, volatile=True).cuda(), flow_grid_before, mode='nearest')
             else:
-                rotate_heat = F.grid_sample(Variable(input_heat_data, volatile=True), flow_grid_before, mode='nearest')
+                rotate_heat = F.grid_sample(Variable(input_heatmap_data, volatile=True), flow_grid_before, mode='nearest')
 
             # Compute intermediate features
             interm_grasp_feat = self.grasp_heat_trunk.features(rotate_heat)
-            interm_feat.append(interm_grasp_feat)
+            self.interm_feat.append(interm_grasp_feat)
 
             # Compute sample grid for rotation AFTER branches
             affine_mat_after = np.asarray([
@@ -136,6 +136,6 @@ class reinforcement_net(nn.Module):
                 flow_grid_after = F.affine_grid(Variable(affine_mat_after, requires_grad=False), interm_grasp_feat.data.size())
 
             # Forward pass through branches, undo rotation on output predictions, upsample resuls
-            output_prob.append([nn.Upsample(scale_factor=16, mode='bilinear').forward(F.grid_sample(self.graspnet(interm_grasp_feat), flow_grid_after, mode='nearest'))])
+            self.output_prob.append([nn.Upsample(scale_factor=16, mode='bilinear').forward(F.grid_sample(self.graspnet(interm_grasp_feat), flow_grid_after, mode='nearest'))])
 
-            return output_prob, interm_feat
+            return self.output_prob, self.interm_feat
