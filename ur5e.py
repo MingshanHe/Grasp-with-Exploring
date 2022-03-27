@@ -397,7 +397,6 @@ class UR5E(Robot):
 
                         # Save the heatmap
                         self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
-                        self.datalogger.save_heatmaps(self.heatmap)
 
                         # Touch something and z+ to pre grasp
                         # self.Go((UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), self.pre_grasp_high, self.explore_start_pose[i][3], self.explore_start_pose[i][4],self.explore_start_pose[i][5]))
@@ -438,6 +437,7 @@ class UR5E(Robot):
                     # self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
                     # self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
                     if ((i+1) == self.detect_iterations):
+                        self.datalogger.save_heatmaps(self.heatmap)
                         self.prev_heatmap = self.heatmap.copy()
                         break
                     else:
@@ -533,12 +533,13 @@ class UR5E(Robot):
                 # self.Explore()
                 self.Check = input("Check if it is grasp: [True], [False]")
 
-                if self.Check:
-                    grasp_success = False
-                    print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
-                else:
+                if self.Check == 'True':
                     grasp_success = True
                     print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
+
+                elif self.Check == 'False':
+                    grasp_success = False
+                    print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
 
                 label_value, prev_reward_value = self.trainer.get_label_value(grasp_success)
 
