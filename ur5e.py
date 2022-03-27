@@ -32,9 +32,18 @@ class UR5E(Robot):
             error("Wrong Training Axis.")
 
         if self.use_sim:
+            # Set up grasp params
+            self.pre_grasp_high = 0.1
+            self.grasp_high = 0.02
+
             # Setup some params
             self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [-0.0001, 0.4]])
+
             self.home_pose = [-0.3, 0.0, 0.30, np.pi/2, 0.0, np.pi/2]
+
+            self.put_pose  = [[-0.3, -0.3, self.pre_grasp_high, np.pi/2, 0.0, np.pi/2],
+                            [-0.3, -0.3, self.grasp_high, np.pi/2, 0.0, np.pi/2]]
+
             self.workstart_pose = [[-0.3, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
                                 [-0.7, 0.0, 0.1, np.pi/2, 0.0, np.pi/2],
                                 [-0.500, -0.2, 0.1, np.pi/2, np.pi/2, np.pi/2],
@@ -50,8 +59,7 @@ class UR5E(Robot):
                                     [-0.5, 0.2, 0.02, np.pi/2, np.pi/2, np.pi/2],
                                     [-0.5, -0.2, 0.02, np.pi/2, np.pi/2, np.pi/2]]
 
-            self.pre_grasp_high = 0.1
-            self.grasp_high = 0.02
+
 
             self.detected_threshold = 3.0
             self.detect_iterations  = 4
@@ -116,6 +124,7 @@ class UR5E(Robot):
             self.force_data = []
             self.torque_data = []
             self.Detected = False
+            self.Check    = None
 
             # grasp_pose = grasp_predict_pose + current_pose
             self.grasp_predict_pose = None
@@ -400,6 +409,7 @@ class UR5E(Robot):
 
                 # Check the Object to Grasp
                 if self.Detected:
+                    self.Check = True
                     # # Read current pose (position & orientation)
                     # sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
                     # sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
@@ -428,6 +438,7 @@ class UR5E(Robot):
                     # self.grasp_pose[1] = self.grasp_param*self.grasp_predict_pose[1] + UR5_target_position[1]
                     # self.grasp_pose[2] = (np.pi)*(self.grasp_predict_pose[2]+0.5) + UR5_target_orientation[1]
                     if ((i+1) == self.detect_iterations):
+                        self.prev_heatmap = self.heatmap.copy()
                         break
                     else:
                         self.Go(self.workstart_pose[i+1])
@@ -435,10 +446,14 @@ class UR5E(Robot):
                     # self.Grasp(pos_data=(self.grasp_pose[0], self.grasp_pose[1]), ori_data=(np.pi/2, self.grasp_pose[2], np.pi/2))
                 else:
                     print("[ENVIRONMENT STATE]: No Object to Grasp")
-                    # self.logger.save_force_data(self.force_data)
-                    vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(target_pose[0],target_pose[1],target_pose[2]),vrep.simx_opmode_blocking)
-                    vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (target_pose[3],target_pose[4],target_pose[5]), vrep.simx_opmode_blocking)
-                    time.sleep(1)
+                    if not (self.Check):
+                        self.Check = False
+                    if ((i+1) == self.detect_iterations):
+                        self.prev_heatmap = self.heatmap.copy()
+                        break
+                    else:
+                        self.Go(self.workstart_pose[i+1])
+                        continue
         else:
             while (self.DetectObject()):
                 # Force = self.Monitor.tcf_force()
@@ -456,9 +471,31 @@ class UR5E(Robot):
                 else:
                     print("Predicted Position is out of the workspace limit.")
 
-    def Train(self):
+    def Train(self, use_heuristic):
 
-        return 1
+        grasp_predictions, state_feat = self.trainer.forward(self.heatmap, is_volatile=True)
+
+        best_grasp_conf = np.max(grasp_predictions)
+        print('[TRAINER INFO]: Primitive GRASP confidence scores: %f' % (best_grasp_conf))
+
+        if use_heuristic:
+            best_pix_ind = self.trainer.grasp_heuristic(self.heatmap)
+            predicted_value = grasp_predictions[best_pix_ind]
+        else:
+            best_pix_ind = np.unravel_index(np.argmax(grasp_predictions), grasp_predictions.shape)
+            predicted_value = np.max(grasp_predictions)
+        self.prev_best_pix_ind = best_pix_ind
+        print('[TRAINER INFO]: Action Grasp at (%d, %d, %d)' % (best_pix_ind[0], best_pix_ind[1], best_pix_ind[2]))
+        best_rotation_angle = np.deg2rad(best_pix_ind[0]*(360.0/self.trainer.model.num_rotations))
+        best_pix_x = best_pix_ind[2]
+        best_pix_y = best_pix_ind[1]
+
+        primitive_position = [best_pix_x * self.trainer.heatmap_resolution + self.workspace_limits[0][0], 
+        best_pix_y * self.trainer.heatmap_resolution + self.workspace_limits[1][0]]
+
+        self.Grasp(pos_data=(primitive_position[0], primitive_position[1]), ori_data=(np.pi/2, best_rotation_angle, np.pi/2))
+
+
     def Grasp(self, pos_data, ori_data):
         """
         Grasp Strategy
@@ -469,39 +506,43 @@ class UR5E(Robot):
             if taskcontinue:
                 # Open the Gripper
                 self.gripper_open()
-
                 time.sleep(1)
 
                 # Go to the position and orientation above the object
                 self.Go((pos_data[0], pos_data[1], 0.1, ori_data[0], ori_data[1], ori_data[2]))
 
-                time.sleep(1)
-
                 # Go to grasp
                 self.Go((pos_data[0], pos_data[1], self.grasp_high, ori_data[0], ori_data[1], ori_data[2]))
 
-                time.sleep(1)
-
-                grasp_score = self.PredictedGraspScore()
 
                 # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
                 # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
                 #             self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
                 #             self.grasp_predict_pose[2]+grasp_score[2])))
-                time.sleep(1)
 
                 # Close the Gripper
-                gripper_fully_closed = self.gripper_close()
+                self.gripper_close()
+                
 
-                if gripper_fully_closed:
+                self.Go(self.put_pose[0])
+
+                self.Go(self.put_pose[1])
+
+                self.gripper_open()
+
+                # self.Explore()
+                self.Check = input("Check if it is grasp: [True], [False]")
+
+                if self.Check:
+                    grasp_success = False
                     print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
-                    # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
-                    # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+np.random.rand()-0.5,
-                    #             self.grasp_predict_pose[1]/self.grasp_param+np.random.rand()-0.5,
-                    #             self.grasp_predict_pose[2]+grasp_score[2])))
                 else:
+                    grasp_success = True
                     print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
 
+                label_value, prev_reward_value = self.trainer.get_label_value(grasp_success)
+
+                self.trainer.backprop(self.prev_heatmap, self.prev_best_pix_ind, label_value)
 
                 time.sleep(1)
                 # Pick the object up
@@ -593,7 +634,7 @@ class UR5E(Robot):
             ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(
                 self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,
                 'GripperOpen',[0], [0.0], "false", bytearray(), vrep.simx_opmode_blocking)
-            gripper_fully_closed = False
+            time.sleep(1)
         else:
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_socket.connect(("192.168.1.101", 30003))
@@ -612,7 +653,7 @@ class UR5E(Robot):
             ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(
                 self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,
                 'GripperClose',[0], [0.0], "false", bytearray(), vrep.simx_opmode_blocking)
-            gripper_fully_closed = False
+            time.sleep(1)
         else:
             tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             tcp_socket.connect(("192.168.1.101", 30003))
@@ -621,4 +662,3 @@ class UR5E(Robot):
             tcp_socket.send(str.encode(tcp_command))  # 利用字符串的encode方法编码成bytes，默认为utf-8类型
             tcp_socket.close()
             time.sleep(2)
-        return gripper_fully_closed
