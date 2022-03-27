@@ -162,13 +162,13 @@ class Trainer(object):
             print("CUDA is *NOT* detected. Runing CPU")
             self.use_cuda = False
 
-        self.heatmap = np.zeros([500, 500])
-        self.heatmap_resolution = (0.4/500)
+        self.heatmap = np.zeros([50, 50])
+        self.heatmap_resolution = (0.4/50)
 
         # Fully convolutional Q network for deep reinforcement learning
         self.model = reinforcement_net(self.use_cuda)
         self.push_rewareds = None
-        self.future_reward_discount = None
+        self.future_reward_discount = 0.1
 
         # Initialize Huber loss
         self.criterion = torch.nn.SmoothL1Loss(reduce=False)
@@ -227,18 +227,19 @@ class Trainer(object):
     def backprop(self, heatmap, best_pix_ind, label_value):
 
         # Compute labels
-        label = np.zeros((1,320,320))
-        action_area = np.zeros((224, 224))
+        label = np.zeros((1,960,960))
+        action_area = np.zeros((864, 864))
         action_area[best_pix_ind[1]][best_pix_ind[2]] = 1
-        tmp_label = np.zeros((224, 224))
+
+        tmp_label = np.zeros((864, 864))
         tmp_label[action_area > 0] = label_value
-        label[0, 48:(320-48), 48:(320-48)] = tmp_label
+        label[0, 48:(960-48), 48:(960-48)] = tmp_label
 
         # Compute label mask
         label_weights = np.zeros(label.shape)
-        tmp_label_weights = np.zeros((224,224))
+        tmp_label_weights = np.zeros((864,864))
         tmp_label_weights[action_area > 0] = 1
-        label_weights[0, 48:(320-48), 48:(320-48)] = tmp_label_weights
+        label_weights[0, 48:(960-48), 48:(960-48)] = tmp_label_weights
 
         # Compute loss and backward pass
         self.optimizer.zero_grad()
@@ -248,9 +249,9 @@ class Trainer(object):
         grasp_predictions, state_feat = self.forward(heatmap, is_volatile=False, specific_rotation=best_pix_ind[0])
 
         if self.use_cuda:
-            loss = self.criterion(self.model.output_prob[0][1].view(1,320,320), Variable(torch.from_numpy(label).float().cuda())) * Variable(torch.from_numpy(label_weights).float().cuda(),requires_grad=False)
+            loss = self.criterion(self.model.output_prob[0][0].view(1,960,960), Variable(torch.from_numpy(label).float().cuda())) * Variable(torch.from_numpy(label_weights).float().cuda(),requires_grad=False)
         else:
-            loss = self.criterion(self.model.output_prob[0][1].view(1,320,320), Variable(torch.from_numpy(label).float())) * Variable(torch.from_numpy(label_weights).float(),requires_grad=False)
+            loss = self.criterion(self.model.output_prob[0][0].view(1,960,960), Variable(torch.from_numpy(label).float())) * Variable(torch.from_numpy(label_weights).float(),requires_grad=False)
         loss = loss.sum()
         loss.backward()
         loss_value = loss.cpu().data.numpy()
@@ -260,9 +261,9 @@ class Trainer(object):
         grasp_predictions, state_feat = self.forward(heatmap, is_volatile=False, specific_rotation=opposite_rotate_idx)
 
         if self.use_cuda:
-            loss = self.criterion(self.model.output_prob[0][1].view(1,320,320), Variable(torch.from_numpy(label).float().cuda())) * Variable(torch.from_numpy(label_weights).float().cuda(),requires_grad=False)
+            loss = self.criterion(self.model.output_prob[0][0].view(1,960,960), Variable(torch.from_numpy(label).float().cuda())) * Variable(torch.from_numpy(label_weights).float().cuda(),requires_grad=False)
         else:
-            loss = self.criterion(self.model.output_prob[0][1].view(1,320,320), Variable(torch.from_numpy(label).float())) * Variable(torch.from_numpy(label_weights).float(),requires_grad=False)
+            loss = self.criterion(self.model.output_prob[0][0].view(1,960,960), Variable(torch.from_numpy(label).float())) * Variable(torch.from_numpy(label_weights).float(),requires_grad=False)
 
         loss = loss.sum()
         loss.backward()
