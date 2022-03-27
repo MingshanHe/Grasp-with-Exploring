@@ -24,9 +24,9 @@ class reinforcement_net(nn.Module):
 
         # Construct network branches for grasping
         self.graspnet = nn.Sequential(OrderedDict([
-            ('grasp-norm0', nn.BatchNorm2d(2048)),
+            ('grasp-norm0', nn.BatchNorm2d(1024)),
             ('grasp-relu0', nn.ReLU(inplace=True)),
-            ('grasp-conv0', nn.Conv2d(2048, 64, kernel_size=1, stride=1, bias=False)),
+            ('grasp-conv0', nn.Conv2d(1024, 64, kernel_size=1, stride=1, bias=False)),
             ('grasp-norm1', nn.BatchNorm2d(64)),
             ('grasp-relu1', nn.ReLU(inplace=True)),
             ('grasp-conv1', nn.Conv2d(64, 1, kernel_size=1, stride=1, bias=False))
@@ -64,15 +64,15 @@ class reinforcement_net(nn.Module):
                     affine_mat_before = torch.from_numpy(affine_mat_before).permute(2,0,1).float()
 
                     if self.use_cuda:
-                        flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).cuda(), input_heat_data.size())
+                        flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False).cuda(), input_heatmap_data.size())
                     else:
-                        flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False), input_heat_data.size())
+                        flow_grid_before = F.affine_grid(Variable(affine_mat_before, requires_grad=False), input_heatmap_data.size())
 
                     # Rotate images clockwise
                     if self.use_cuda:
-                        rotate_heat = F.grid_sample(Variable(input_heat_data, volatile=True).cuda(), flow_grid_before, mode='nearest')
+                        rotate_heat = F.grid_sample(Variable(input_heatmap_data, volatile=True).cuda(), flow_grid_before, mode='nearest')
                     else:
-                        rotate_heat = F.grid_sample(Variable(input_heat_data, volatile=True), flow_grid_before, mode='nearest')
+                        rotate_heat = F.grid_sample(Variable(input_heatmap_data, volatile=True), flow_grid_before, mode='nearest')
 
                     # Compute intermediate features
                     interm_grasp_feat = self.grasp_heat_trunk.features(rotate_heat)
