@@ -34,6 +34,7 @@ def main(args):
 
             ur5e.Explore()
 
+            ur5e.Train(use_heuristic=True)
             print("--------------------------------------------------")
     else:
         ur5e = UR5E(host_ip,use_simulation=False, train_axis=train_axis)
