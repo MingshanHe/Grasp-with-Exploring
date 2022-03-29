@@ -11,6 +11,7 @@ from utils import CrossEntropyLoss2d
 from model import reinforcement_net
 from scipy import ndimage
 
+
 class NeuralNetwork():
     def __init__(self, sizes):
         """
