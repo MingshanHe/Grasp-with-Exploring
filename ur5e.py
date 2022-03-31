@@ -5,12 +5,15 @@ from utils import Logger
 from utils import Filter
 from trainer import NeuralNetwork, Trainer
 from graph  import Graph
+from explore import FrontierSearch
+
 from vrep_api import vrep
 import numpy as np
 import socket
 import time
 import struct
 import os
+
 
 class UR5E(Robot):
     def __init__(self):
@@ -39,13 +42,13 @@ class UR5E(Robot):
 
         self.explore_start_pose = [[-0.3, 0.0, self.grasp_high, 0.0, 0.0, 0.0],
                             [-0.7,    0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, 0.0]]
+                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
+                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
 
         self.explore_end_pose = [[-0.7, 0.0, self.grasp_high, 0.0, 0.0, 0.0],
                             [-0.3,    0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, 0.0]]
+                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
+                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
 
         self.detected_threshold = 3.0
         self.detect_iterations  = 4
@@ -100,6 +103,8 @@ class UR5E(Robot):
         # self.trainer = NeuralNetwork([2,4,3])
         self.trainer = Trainer(force_cpu=False)
         self.graph = Graph()
+        self.frontierSearch = FrontierSearch(self.workspace_limits, 500)
+
         #? Initialize data logger
         logging_directory = os.path.abspath('logs')
         self.datalogger = Logger(logging_directory)
@@ -252,15 +257,15 @@ class UR5E(Robot):
             # Compute gripper position and linear movement increments
             move_direction = np.asarray([self.explore_end_pose[i][0] - UR5_target_position[0], self.explore_end_pose[i][1] - UR5_target_position[1], self.explore_end_pose[i][2] - UR5_target_position[2]])
             move_magnitude = np.linalg.norm(move_direction)
-            move_step = 0.005*move_direction/move_magnitude
-            num_move_steps = max(int(np.floor((move_direction[0]+1e-5)/(move_step[0]+1e-5))),
-                                int(np.floor((move_direction[1]+1e-5)/(move_step[1]+1e-5))),
-                                int(np.floor((move_direction[2]+1e-5)/(move_step[2]+1e-5))))
+            move_step = 0.005*move_direction/(move_magnitude+1e-10)
+            num_move_steps = max(int(np.floor((move_direction[0])/(move_step[0]+1e-10))),
+                                int(np.floor((move_direction[1])/(move_step[1]+1e-10))),
+                                int(np.floor((move_direction[2])/(move_step[2]+1e-10))))
 
             # Compute gripper orientation and rotation increments
             rotate_direction = np.asarray([self.explore_end_pose[i][3] - UR5_target_orientation[0], self.explore_end_pose[i][4] - UR5_target_orientation[1], self.explore_end_pose[i][5] - UR5_target_orientation[2]])
             rotate_magnitude = np.linalg.norm(rotate_direction)
-            rotate_step = 0.05*rotate_direction/rotate_magnitude
+            rotate_step = 0.05*rotate_direction/(rotate_magnitude+1e-10)
             num_rotate_steps = max(int(np.floor((rotate_direction[0])/(rotate_step[0]+1e-10))),
                                 int(np.floor((rotate_direction[1])/(rotate_step[1]+1e-10))),
                                 int(np.floor((rotate_direction[2])/(rotate_step[2]+1e-10))))
@@ -276,9 +281,13 @@ class UR5E(Robot):
                     sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
                     # Save the heatmap
-                    self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
+                    self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
+                    initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
 
-                    self.graph.addNode((UR5_target_position[0], UR5_target_position[1]), UR5_target_orientation[2],self.force_data)
+                    self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
+                    # self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
+
+                    # self.graph.addNode((UR5_target_position[0], UR5_target_position[1]), UR5_target_orientation[2],self.force_data)
 
                     # Touch something and move to the start pose
                     self.Go(self.workstart_pose[i])
