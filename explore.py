@@ -71,7 +71,9 @@ class HeatMap():
 
 class FrontierSearch():
     def __init__(self,workspace_limits, resolutions):
-        self.map = HeatMap(workspace_limits, resolutions)
+        self.map    = HeatMap(workspace_limits, resolutions)
+        self.points = []
+        self.derive_points = []
 
     def isNewFrontierCell(self, idx, frontier_flag):
 
@@ -96,23 +98,18 @@ class FrontierSearch():
         # build the initial frontier
         self.map.updateFrontier(frontier.centroid, frontier.direct)
 
-        # build 4 neighboor
+        self.points.append(frontier.centroid)
+        # build 2 neighboor
         for i in range(1):
             frontier_ = Frontier()
             frontier_.centroid = (
                 frontier.centroid[0]-self.map.range_*(i+1)*2*np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
                 frontier.centroid[1]+self.map.range_*(i+1)*2*np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
             self.map.updateFrontier(frontier_.centroid, frontier.direct)
+            self.derive_points.append(frontier_.centroid)
 
             frontier_.centroid = (
                 frontier.centroid[0]-self.map.range_*(i+1)*2*-np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
                 frontier.centroid[1]+self.map.range_*(i+1)*2*-np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
             self.map.updateFrontier(frontier_.centroid, frontier.direct)
-
-        # output.centroid = (0,0)
-        # output.size = 1
-        # output.min_distance = np.NAN
-
-        # record initial contact point for frontier
-        # output.initial = self.map.WorldToMap(initial_cell)
-
+            self.derive_points.append(frontier_.centroid)
