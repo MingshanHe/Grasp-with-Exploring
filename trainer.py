@@ -1,5 +1,4 @@
 
-from turtle import forward
 import numpy as np
 
 import cv2
@@ -10,6 +9,7 @@ from torch.autograd import Variable
 from utils import CrossEntropyLoss2d
 from model import reinforcement_net
 from scipy import ndimage
+
 
 class NeuralNetwork():
     def __init__(self, sizes):
