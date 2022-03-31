@@ -38,6 +38,31 @@ class HeatMap():
         map_y = int((idx[1] - self.workspace_limits[1][0]) * self.resolutions/np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))
         return(map_x, map_y)
 
+    def updatemap(self, x, y, value):
+        if (x >= 0 and x < self.heatmap.shape[0]) and (y >=0 and y < self.heatmap.shape[1]):
+            self.heatmap[x][y] =  value
+
+    def updateFree(self, pos, angle):
+        for i in range(self.range_):
+            for j in range(self.range_):
+                #TODO: Add some if condition to judge in the map limits
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
     def updateFrontier(self, pos, angle):
         print(pos)
 
@@ -47,7 +72,7 @@ class HeatMap():
 
                 x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
                 y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
-                self.heatmap[x][y] = 255
+                self.updatemap(x, y, 255)
 
                 # x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
                 # y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
@@ -55,7 +80,7 @@ class HeatMap():
 
                 x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
-                self.heatmap[x][y] = 255
+                self.updatemap(x, y, 255)
 
                 # x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 # y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
@@ -86,6 +111,14 @@ class FrontierSearch():
         # TODO: Need add nhood4 function
         else:
             return true
+    def buildNewFree(self, initial_cell, initial_angle):
+        # initialize frontier structure
+        frontier = Frontier()
+        frontier.centroid = self.map.WorldToMap(initial_cell)
+        frontier.direct   = initial_angle
+
+        # build the initial frontier
+        self.map.updateFree(frontier.centroid, frontier.direct)
 
     def buildNewFrontier(self, initial_cell, initial_force, initial_angle):
 
