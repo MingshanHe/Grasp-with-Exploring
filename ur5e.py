@@ -274,6 +274,10 @@ class UR5E(Robot):
             for step_iter in range(max(num_move_steps, num_rotate_steps)):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                 vrep.simxSetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, (UR5_target_orientation[0] + rotate_step[0]*min(step_iter,num_rotate_steps), UR5_target_orientation[1] + rotate_step[1]*min(step_iter,num_rotate_steps), UR5_target_orientation[2] + rotate_step[2]*min(step_iter,num_rotate_steps)), vrep.simx_opmode_blocking)
+                self.frontierSearch.buildNewFree(
+                    initial_cell=(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps)),
+                    initial_angle=UR5_target_orientation[2] + rotate_step[2]*min(step_iter,num_rotate_steps)
+                )
                 if not self.DetectObject() :
 
                     # Read current pose (position & orientation)
@@ -284,7 +288,7 @@ class UR5E(Robot):
                     self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
                     initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
 
-                    self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
+                    # self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
                     # self.heatmap = self.trainer.upate_heatmap(self.workspace_limits, (UR5_target_position[0], UR5_target_position[1]), self.force_data, UR5_target_orientation[1])
 
                     # self.graph.addNode((UR5_target_position[0], UR5_target_position[1]), UR5_target_orientation[2],self.force_data)
