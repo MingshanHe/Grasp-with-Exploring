@@ -30,13 +30,13 @@ class HeatMap():
     def MapToWorld(self, idx):
         world_x = (idx[0] * np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))/self.resolutions + self.workspace_limits[0][0]
         world_y = (idx[1] * np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))/self.resolutions + self.workspace_limits[1][0]
-        return(world_x, world_y)
+        return([world_x, world_y])
 
 
     def WorldToMap(self, idx):
         map_x = int((idx[0] - self.workspace_limits[0][0]) * self.resolutions/np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))
         map_y = int((idx[1] - self.workspace_limits[1][0]) * self.resolutions/np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))
-        return(map_x, map_y)
+        return([map_x, map_y])
 
     def updatemap(self, x, y, value):
         if (x >= 0 and x < self.heatmap.shape[0]) and (y >=0 and y < self.heatmap.shape[1]):
@@ -97,20 +97,11 @@ class HeatMap():
 class FrontierSearch():
     def __init__(self,workspace_limits, resolutions):
         self.map    = HeatMap(workspace_limits, resolutions)
+        self.action_space = ['x+', 'x-', 'y+', 'y-']
+        self.n_actions = len(self.action_space)
         self.points = []
         self.derive_points = []
 
-    def isNewFrontierCell(self, idx, frontier_flag):
-
-        # check that cell is unknown and not already marked as frontier
-        if(self.map[idx[0]][idx[1]] == 0 | frontier_flag[idx[0]][idx[1]]):
-            return false
-
-        # frontier cells should have at least one cell
-        # in 4-connected neighbourhood that is free
-        # TODO: Need add nhood4 function
-        else:
-            return true
     def buildNewFree(self, initial_cell, initial_angle):
         # initialize frontier structure
         frontier = Frontier()
@@ -146,3 +137,22 @@ class FrontierSearch():
                 frontier.centroid[1]+self.map.range_*(i+1)*2*-np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
             self.map.updateFrontier(frontier_.centroid, frontier.direct)
             self.derive_points.append(frontier_.centroid)
+
+    def step(self, action, current_pos, unit):
+        '''
+        action: | x+ | x- | y+ | y- |
+        '''
+        act_pos = [current_pos[0],current_pos[1]]
+        if action == 0: # x+
+            if ((current_pos[0] + unit) >= self.map.workspace_limits[0][0] and (current_pos[0] + unit) <= self.map.workspace_limits[0][1]):
+                act_pos[0] = current_pos[0] + unit
+        elif action == 1: # x-
+            if ((current_pos[0] - unit) >= self.map.workspace_limits[0][0] and (current_pos[0] - unit) <= self.map.workspace_limits[0][1]):
+                act_pos[0] = current_pos[0] - unit
+        elif action == 2: # x+
+            if ((current_pos[1] + unit) >= self.map.workspace_limits[1][0] and (current_pos[1] + unit) <= self.map.workspace_limits[1][1]):
+                act_pos[1] = current_pos[1] + unit
+        elif action == 3: # x-
+            if ((current_pos[1] - unit) >= self.map.workspace_limits[1][0] and (current_pos[1] - unit) <= self.map.workspace_limits[1][1]):
+                act_pos[1] = current_pos[1] - unit
+        return act_pos
