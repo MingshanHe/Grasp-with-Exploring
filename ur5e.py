@@ -148,7 +148,7 @@ class UR5E(Robot):
             # object_position = [drop_x, drop_y, 0.15]
             # object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
             #? Drop in Fixed position and orientation
-            object_position = [-0.35, 0, 0.15]
+            object_position = [-0.5, 0, 0.2]
             object_orientation = [np.pi/2, 0, 0]
 
             object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
@@ -236,7 +236,6 @@ class UR5E(Robot):
         # Output the force of XYZ
         if((np.fabs(forceVector[0]) > self.detected_threshold) or (np.fabs(forceVector[1]) > self.detected_threshold)):
             self.force_data = forceVector
-            print(forceVector)
             self.Detected = True
             return True
         else:
@@ -263,6 +262,9 @@ class UR5E(Robot):
             # RL
             w2m_pos = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
             heatmap = self.frontierSearch.map.heatmap
+
+            print(self.frontierSearch.map.explore_complete)
+
             self.action = self.RL.choose_action(map_pos=w2m_pos, explore_complete=self.frontierSearch.map.explore_complete, resolutions=self.resolutions)
 
             move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
@@ -284,7 +286,8 @@ class UR5E(Robot):
                     initial_angle=UR5_target_orientation[2]
                 )
                 if self.DetectObject() :
-                    print("[ENVIRONMENT STATE]: Touch a Object")
+                    # print("[ENVIRONMENT STATE]: Touch a Object")
+                    vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter-1,num_move_steps-1), UR5_target_position[1] + move_step[1]*min(step_iter-1,num_move_steps-1), UR5_target_position[2] + move_step[2]*min(step_iter-1,num_move_steps-1)),vrep.simx_opmode_blocking)
                     break
 
             # Check the Object to Grasp
