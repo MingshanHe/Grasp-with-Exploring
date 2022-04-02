@@ -287,7 +287,7 @@ class UR5E(Robot):
                 )
                 if self.DetectObject() :
                     # print("[ENVIRONMENT STATE]: Touch a Object")
-                    vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter-1,num_move_steps-1), UR5_target_position[1] + move_step[1]*min(step_iter-1,num_move_steps-1), UR5_target_position[2] + move_step[2]*min(step_iter-1,num_move_steps-1)),vrep.simx_opmode_blocking)
+                    vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                     break
 
             # Check the Object to Grasp
@@ -299,6 +299,7 @@ class UR5E(Robot):
                 self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
                 # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
             else:
+                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
                 self.reward = 0
                 self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
