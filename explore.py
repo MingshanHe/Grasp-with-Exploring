@@ -23,6 +23,7 @@ class Frontier():
 class HeatMap():
     def __init__(self, workspace_limits, resolutions):
         self.heatmap = np.zeros((resolutions, resolutions))
+        self.explore_complete = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.workspace_limits = workspace_limits
         self.resolutions = resolutions
         self.range_ = int(resolutions/50)
@@ -32,11 +33,55 @@ class HeatMap():
         world_y = (idx[1] * np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))/self.resolutions + self.workspace_limits[1][0]
         return([world_x, world_y])
 
-
     def WorldToMap(self, idx):
         map_x = int((idx[0] - self.workspace_limits[0][0]) * self.resolutions/np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))
         map_y = int((idx[1] - self.workspace_limits[1][0]) * self.resolutions/np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))
         return([map_x, map_y])
+
+    def update_explore_compelete(self):
+        sum = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+        tmp = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+        for i in range(self.resolutions):
+            for j in range(self.resolutions):
+                if (i>=0 and i < int(self.resolutions/3)) and(j>=0 and j < int(self.resolutions/3)):
+                    sum[0] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[0] += 1
+                elif (i>=0 and i < int(self.resolutions/3)) and(j>=int(self.resolutions/3) and j < int(self.resolutions*2/3)):
+                    sum[1] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[1] += 1
+                elif (i>=0 and i < int(self.resolutions/3)) and(j>=int(self.resolutions*2/3) and j < int(self.resolutions)):
+                    sum[2] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[2] += 1
+                elif (i>=int(self.resolutions/3) and i < int(self.resolutions*2/3)) and(j>=0 and j < int(self.resolutions/3)):
+                    sum[3] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[3] += 1
+                elif (i>=int(self.resolutions/3) and i < int(self.resolutions*2/3)) and(j>=int(self.resolutions/3) and j < int(self.resolutions*2/3)):
+                    sum[4] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[4] += 1
+                elif (i>=int(self.resolutions/3) and i < int(self.resolutions*2/3)) and(j>=int(self.resolutions*2/3) and j < int(self.resolutions)):
+                    sum[5] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[5] += 1
+                elif (i>=int(self.resolutions*2/3) and i < int(self.resolutions)) and(j>=0 and j < int(self.resolutions/3)):
+                    sum[6] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[6] += 1
+                elif (i>=int(self.resolutions*2/3) and i < int(self.resolutions)) and(j>=int(self.resolutions/3) and j < int(self.resolutions*2/3)):
+                    sum[7] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[7] += 1
+                elif (i>=int(self.resolutions*2/3) and i < int(self.resolutions)) and(j>=int(self.resolutions*2/3) and j < int(self.resolutions)):
+                    sum[8] += 1
+                    if self.heatmap[i][j] > 0:
+                        tmp[8] += 1
+        for k in range(9):
+            self.explore_complete[k] = tmp[k]/sum[k]
 
     def updatemap(self, x, y, value):
         if (x >= 0 and x < self.heatmap.shape[0]) and (y >=0 and y < self.heatmap.shape[1]):
@@ -62,6 +107,7 @@ class HeatMap():
                 x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
                 self.updatemap(x, y, 120)
+        # self.update_explore_compelete()
 
     def updateFrontier(self, pos, angle):
         print(pos)
@@ -85,6 +131,7 @@ class HeatMap():
                 # x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 # y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
                 # self.heatmap[x][y] = 255
+        # self.update_explore_compelete()
 
         sns.set()
         ax = sns.heatmap(self.heatmap)
