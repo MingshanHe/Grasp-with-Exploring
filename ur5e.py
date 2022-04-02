@@ -51,7 +51,7 @@ class UR5E(Robot):
                             [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
                             [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
 
-        self.detected_threshold = 4.0
+        self.detected_threshold = 3.5
         self.detect_iterations  = 5000
         # Define colors for object meshes (Tableau palette)
         self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
@@ -102,10 +102,13 @@ class UR5E(Robot):
 
         #? Initialize trainer
         # self.trainer = NeuralNetwork([2,4,3])
+        self.unit = 0.02
+        self.resolutions = 600
         self.trainer = Trainer(force_cpu=False)
         self.graph = Graph()
-        self.frontierSearch = FrontierSearch(self.workspace_limits, 500)
+        self.frontierSearch = FrontierSearch(self.workspace_limits, self.resolutions)
         self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
+
 
         #? Initialize data logger
         logging_directory = os.path.abspath('logs')
@@ -145,7 +148,7 @@ class UR5E(Robot):
             # object_position = [drop_x, drop_y, 0.15]
             # object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
             #? Drop in Fixed position and orientation
-            object_position = [-0.5, 0, 0.15]
+            object_position = [-0.35, 0, 0.15]
             object_orientation = [np.pi/2, 0, 0]
 
             object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
@@ -231,13 +234,14 @@ class UR5E(Robot):
         forceVector = self.forceFilter.LowPassFilter(forceVector)
         torqueVector = self.torqueFilter.LowPassFilter(torqueVector)
         # Output the force of XYZ
-        if((np.fabs(forceVector[0]) > self.detected_threshold)&(np.fabs(forceVector[1]) > self.detected_threshold)):
+        if((np.fabs(forceVector[0]) > self.detected_threshold) or (np.fabs(forceVector[1]) > self.detected_threshold)):
             self.force_data = forceVector
             print(forceVector)
             self.Detected = True
             return True
         else:
-            self.forceFilter.LowPassFilterClear()
+            # print(forceVector)
+            # self.forceFilter.LowPassFilterClear()
             self.Detected = False
             return False
 
@@ -248,7 +252,6 @@ class UR5E(Robot):
         self. Go(self.explore_start_pose[0])
         for i in range(self.detect_iterations):
 
-
             # Pre: close the gripper
             self.gripper_close()
             time.sleep(1)
@@ -258,10 +261,11 @@ class UR5E(Robot):
             sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
 
             # RL
-            self.pre_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
-            self.action = self.RL.choose_action(str(self.pre_observation))
-            move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=0.02)
+            w2m_pos = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
+            heatmap = self.frontierSearch.map.heatmap
+            self.action = self.RL.choose_action(map_pos=w2m_pos, explore_complete=self.frontierSearch.map.explore_complete, resolutions=self.resolutions)
 
+            move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
             # Compute gripper position and linear movement increments
             move_direction = np.asarray([move_pos[0] - UR5_target_position[0], move_pos[1] - UR5_target_position[1], 0.0])
             move_magnitude = np.linalg.norm(move_direction)
@@ -271,9 +275,10 @@ class UR5E(Robot):
                                 int(np.floor((move_direction[2])/(move_step[2]+1e-10))))
 
             # Simultaneously move and rotate gripper
-
             for step_iter in range(num_move_steps):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+
+                # build new free heatmap
                 self.frontierSearch.buildNewFree(
                     initial_cell=(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps)),
                     initial_angle=UR5_target_orientation[2]
@@ -285,14 +290,16 @@ class UR5E(Robot):
             # Check the Object to Grasp
             if self.Detected:
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+                self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
+                    initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
                 self.reward = 1
                 self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
-                self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
+                # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
             else:
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
                 self.reward = 0
                 self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
-                self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
+                # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
 
     def Train(self, use_heuristic):
 
