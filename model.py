@@ -269,6 +269,7 @@ class QLearningTable:
         action = actions.index(max(actions))
 
         self.q_table[state][action] += 1
+        print("action: ", self.q_table[state])
 
         return action
 
@@ -290,4 +291,5 @@ class QLearningTable:
     def check_state_exist(self, state):
 
         if state not in self.q_table:
+            print(state)
             self.q_table[state] = [0, 0, 0, 0]
