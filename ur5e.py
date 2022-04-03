@@ -51,7 +51,7 @@ class UR5E(Robot):
                             [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
                             [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
 
-        self.detected_threshold = 3.5
+        self.detected_threshold = 2.0
         self.detect_iterations  = 5000
         # Define colors for object meshes (Tableau palette)
         self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
@@ -269,7 +269,7 @@ class UR5E(Robot):
             # Compute gripper position and linear movement increments
             move_direction = np.asarray([move_pos[0] - UR5_target_position[0], move_pos[1] - UR5_target_position[1], 0.0])
             move_magnitude = np.linalg.norm(move_direction)
-            move_step = 0.005*move_direction/(move_magnitude+1e-10)
+            move_step = 0.0005*move_direction/(move_magnitude+1e-10)
             num_move_steps = max(int(np.floor((move_direction[0])/(move_step[0]+1e-10))),
                                 int(np.floor((move_direction[1])/(move_step[1]+1e-10))),
                                 int(np.floor((move_direction[2])/(move_step[2]+1e-10))))
