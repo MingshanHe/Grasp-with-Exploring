@@ -41,11 +41,11 @@ class Logger():
 
     def save_heatmaps(self, heatmap):
         # heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
-        sns.set()
-        ax = sns.heatmap(heatmap)
-        plt.ion()
-        plt.pause(3)
-        plt.close()
+        # sns.set()
+        # ax = sns.heatmap(heatmap)
+        # plt.ion()
+        # plt.pause(3)
+        # plt.close()
         cv2.imwrite(os.path.join(self.heatmap_image_directory, 'heatmap.png'), heatmap)
 
 
