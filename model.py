@@ -166,10 +166,9 @@ class QLearningTable:
             global_actions[0] = (3 - (explore_complete[3]+explore_complete[6]+explore_complete[7]))
             global_actions[2] = (3 - (explore_complete[1]+explore_complete[2]+explore_complete[5]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -178,10 +177,9 @@ class QLearningTable:
             global_actions[2] = (1 - explore_complete[2])
             global_actions[3] = (1 - explore_complete[0])
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -189,10 +187,9 @@ class QLearningTable:
             global_actions[0] = (3 - (explore_complete[5]+explore_complete[7]+explore_complete[8]))
             global_actions[3] = (3 - (explore_complete[0]+explore_complete[1]+explore_complete[3]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -201,10 +198,9 @@ class QLearningTable:
             global_actions[1] = (1 - explore_complete[0])
             global_actions[2] = (4 - (explore_complete[2]+explore_complete[4]+explore_complete[5]+explore_complete[8]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -214,10 +210,9 @@ class QLearningTable:
             global_actions[2] = (1 - explore_complete[5])
             global_actions[3] = (1 - explore_complete[3])
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -226,10 +221,9 @@ class QLearningTable:
             global_actions[1] = (1 - explore_complete[2])
             global_actions[3] = (4 - (explore_complete[0]+explore_complete[3]+explore_complete[4]+explore_complete[6]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -237,10 +231,9 @@ class QLearningTable:
             global_actions[1] = (3 - (explore_complete[0]+explore_complete[1]+explore_complete[3]))
             global_actions[2] = (3 - (explore_complete[5]+explore_complete[7]+explore_complete[8]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -249,10 +242,9 @@ class QLearningTable:
             global_actions[2] = (1 - explore_complete[8])
             global_actions[3] = (1 - explore_complete[6])
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
 
@@ -260,36 +252,38 @@ class QLearningTable:
             global_actions[1] = (3 - (explore_complete[1]+explore_complete[2]+explore_complete[5]))
             global_actions[3] = (3 - (explore_complete[3]+explore_complete[6]+explore_complete[7]))
             for i in range(4):
-                custom_actions[i] = np.random.uniform()
+                # custom_actions[i] = np.random.uniform()
+                custom_actions[i] = np.exp(-self.q_table[state][i])
                 actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
 
-            print(global_actions)
 
             global_actions = [0, 0, 0, 0]
         action = actions.index(max(actions))
 
-        self.q_table[state][action] += 1
-        print("action: ", self.q_table[state])
+        # self.q_table[state][action] += 1
+        print(state, "action: ", self.q_table[state])
 
         return action
 
-    def learn(self, s, a, r, s_):
-        self.check_state_exist(s_)
+    def learn(self, s, a, r):
+        state = str(s[0])+','+str(s[1])
+        self.check_state_exist(state)
 
-        q_predict = self.q_table.loc[s, a]
+        self.q_table[state][a] = r
 
-        if s_ != 'terminal':
+        print(state, 'action: ',self.q_table[state])
 
-            q_target = r + self.gamma * self.q_table.loc[s_, :].max()
+        # if s_ != 'terminal':
 
-        else:
+        #     q_target = r + self.gamma * self.q_table.loc[s_, :].max()
 
-            q_target = r # next state is terminal
+        # else:
 
-        self.q_table.loc[s,a] += self.lr * (q_target - q_predict) # update
+        #     q_target = r # next state is terminal
+
+        # self.q_table.loc[s,a] += self.lr * (q_target - q_predict) # update
 
     def check_state_exist(self, state):
 
         if state not in self.q_table:
-            print(state)
             self.q_table[state] = [0, 0, 0, 0]
