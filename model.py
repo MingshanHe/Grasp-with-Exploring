@@ -150,7 +150,7 @@ class QLearningTable:
         self.gamma = reward_decay
         self.epsilon = e_greedy
         # self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)
-        self.global_alpha = 1.5
+        self.global_alpha = 0.5
         self.custom_beta  = 0.5
         self.q_table = {}
 
@@ -269,7 +269,7 @@ class QLearningTable:
         state = str(s[0])+','+str(s[1])
         self.check_state_exist(state)
 
-        self.q_table[state][a] = r
+        self.q_table[state][a] += r
 
         print(state, 'action: ',self.q_table[state])
 
