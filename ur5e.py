@@ -263,8 +263,6 @@ class UR5E(Robot):
             w2m_pos = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
             heatmap = self.frontierSearch.map.heatmap
 
-            print(self.frontierSearch.map.explore_complete)
-
             self.action = self.RL.choose_action(map_pos=w2m_pos, explore_complete=self.frontierSearch.map.explore_complete, resolutions=self.resolutions)
 
             move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
@@ -287,7 +285,8 @@ class UR5E(Robot):
                 )
                 if self.DetectObject() :
                     # print("[ENVIRONMENT STATE]: Touch a Object")
-                    vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+                    self.reward = 100
+                    self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
                     break
 
             # Check the Object to Grasp
@@ -295,14 +294,12 @@ class UR5E(Robot):
                 sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
                 self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
                     initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
-                self.reward = 1
-                self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
-                # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
+                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+                self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
             else:
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
-                sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
-                self.reward = 0
-                self.aft_observation = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
+                self.reward = 1
+                self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
                 # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
 
     def Train(self, use_heuristic):
