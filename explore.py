@@ -146,11 +146,11 @@ class HeatMap():
                 # self.heatmap[x][y] = 255
         # self.update_explore_compelete()
 
-        sns.set()
-        ax = sns.heatmap(self.heatmap)
-        plt.ion()
-        plt.pause(1)
-        plt.close()
+        # sns.set()
+        # ax = sns.heatmap(self.heatmap)
+        # plt.ion()
+        # plt.pause(1)
+        # plt.close()
 
 
 
@@ -183,20 +183,21 @@ class FrontierSearch():
         self.map.updateFrontier(frontier.centroid, frontier.direct)
 
         self.points.append(frontier.centroid)
-        # build 2 neighboor
-        for i in range(1):
-            frontier_ = Frontier()
-            frontier_.centroid = (
-                frontier.centroid[0]-self.map.range_*(i+1)*2*np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
-                frontier.centroid[1]+self.map.range_*(i+1)*2*np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
-            self.map.updateFrontier(frontier_.centroid, frontier.direct)
-            self.derive_points.append(frontier_.centroid)
 
-            frontier_.centroid = (
-                frontier.centroid[0]-self.map.range_*(i+1)*2*-np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
-                frontier.centroid[1]+self.map.range_*(i+1)*2*-np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
-            self.map.updateFrontier(frontier_.centroid, frontier.direct)
-            self.derive_points.append(frontier_.centroid)
+        # build 2 neighboor
+        # for i in range(1):
+        #     frontier_ = Frontier()
+        #     frontier_.centroid = (
+        #         frontier.centroid[0]-self.map.range_*(i+1)*2*np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
+        #         frontier.centroid[1]+self.map.range_*(i+1)*2*np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
+        #     self.map.updateFrontier(frontier_.centroid, frontier.direct)
+        #     self.derive_points.append(frontier_.centroid)
+
+        #     frontier_.centroid = (
+        #         frontier.centroid[0]-self.map.range_*(i+1)*2*-np.cos(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct),
+        #         frontier.centroid[1]+self.map.range_*(i+1)*2*-np.sin(np.arctan2(frontier.force[0],frontier.force[1])-frontier.direct))
+        #     self.map.updateFrontier(frontier_.centroid, frontier.direct)
+        #     self.derive_points.append(frontier_.centroid)
 
     def step(self, action, current_pos, unit):
         '''
