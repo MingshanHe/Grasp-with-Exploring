@@ -121,7 +121,6 @@ class HeatMap():
                 x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
                 self.updatemap(x, y, 120)
-        # self.update_explore_compelete()
 
     def updateFrontier(self, pos, angle):
         self.update_explore_compelete(pos)
@@ -133,25 +132,17 @@ class HeatMap():
                 y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
                 self.updatemap(x, y, 255)
 
-                # x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
-                # y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
-                # self.heatmap[x][y] = 255
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.heatmap[x][y] = 255
 
                 x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
                 y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
                 self.updatemap(x, y, 255)
 
-                # x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
-                # y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
-                # self.heatmap[x][y] = 255
-        # self.update_explore_compelete()
-
-        # sns.set()
-        # ax = sns.heatmap(self.heatmap)
-        # plt.ion()
-        # plt.pause(1)
-        # plt.close()
-
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 255)
 
 
 class FrontierSearch():
@@ -183,6 +174,7 @@ class FrontierSearch():
         self.map.updateFrontier(frontier.centroid, frontier.direct)
 
         self.points.append(frontier.centroid)
+        # print(self.points)
 
         # build 2 neighboor
         # for i in range(1):
@@ -217,3 +209,27 @@ class FrontierSearch():
             if ((current_pos[1] - unit) >= self.map.workspace_limits[1][0] and (current_pos[1] - unit) <= self.map.workspace_limits[1][1]):
                 act_pos[1] = current_pos[1] - unit
         return act_pos
+
+    def grasp_point_angle(self):
+
+        grasp_point = [0.0, 0.0]
+        for i in range(len(self.points)):
+            grasp_point[0] += self.points[i][0]
+            grasp_point[1] += self.points[i][1]
+        grasp_point[0] = grasp_point[0]/len(self.points)
+        grasp_point[1] = grasp_point[1]/len(self.points)
+
+        grasp_angle = 0
+        for i in range(len(self.points)):
+            k = (grasp_point[1]-self.points[i][1])/(grasp_point[0]-self.points[i][0])
+            grasp_angle += k
+        grasp_angle = grasp_angle/len(self.points)
+        print(grasp_angle)
+        grasp_angle = np.arctan((grasp_angle))
+
+        grasp_point = self.map.MapToWorld(grasp_point)
+        print(grasp_point)
+        grasp_point[0] = grasp_point[0] - 0.04*np.sin(grasp_angle)
+        grasp_point[1] = grasp_point[1] - 0.04*np.cos(grasp_angle)
+        print(grasp_point)
+        return(grasp_point, grasp_angle)
