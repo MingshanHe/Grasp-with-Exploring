@@ -33,8 +33,8 @@ class UR5E(Robot):
 
         self.home_pose = [-0.3, 0.0, 0.30, 0.0, 0.0, 0.0]
 
-        self.put_pose  = [[-0.3, -0.3, self.pre_grasp_high, np.pi/2, 0.0, np.pi/2],
-                        [-0.3, -0.3, self.grasp_high, np.pi/2, 0.0, np.pi/2]]
+        self.put_pose  = [[-0.3, -0.3, self.pre_grasp_high, 0.0, 0.0, np.pi/2],
+                        [-0.3, -0.3, self.grasp_high, 0.0, 0.0, np.pi/2]]
 
         self.workstart_pose = [[-0.3, 0.0, 0.1, 0.0, 0.0, 0.0],
                             [-0.7,    0.0, 0.1, 0.0, 0.0, 0.0],
@@ -121,6 +121,7 @@ class UR5E(Robot):
         self.force_data = []
         self.torque_data = []
         self.Detected = False
+        self.Detect_num = 0
         self.Check    = None
 
         # grasp_pose = grasp_predict_pose + current_pose
@@ -237,6 +238,7 @@ class UR5E(Robot):
         if((np.fabs(forceVector[0]) > self.detected_threshold) or (np.fabs(forceVector[1]) > self.detected_threshold)):
             self.force_data = forceVector
             self.Detected = True
+            self.Detect_num += 1
             return True
         else:
             # print(forceVector)
@@ -296,11 +298,15 @@ class UR5E(Robot):
                     initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
                 self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
+                if self.Detect_num == 4:
+                    print("[STRATEGY INFO]: Try to Grasp the object.")
+                    grasp_point, grasp_angle = self.frontierSearch.grasp_point_angle()
+                    self.Grasp(pos_data=grasp_point, ori_data=grasp_angle)
+
             else:
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
                 self.reward = 1
                 self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
-                # self.RL.learn(s=str(self.pre_observation), a= self.action, r = self.reward, s_ = str(self.aft_observation))
 
     def Train(self, use_heuristic):
 
@@ -332,55 +338,54 @@ class UR5E(Robot):
         Grasp Strategy
         """
 
-        print("[PREDICT RESULT]: Desired Grasp Position: [{}, {}], Orientation: [{}].".format(pos_data[0], pos_data[1], ori_data[1]))
-        backdata, taskcontinue = self.DesiredPositionScore(pos_data)
-        if taskcontinue:
+        print("[PREDICT RESULT]: Desired Grasp Position: [{}, {}], Orientation: [{}].".format(pos_data[0], pos_data[1], ori_data))
+        # backdata, taskcontinue = self.DesiredPositionScore(pos_data)
+        # if taskcontinue:
             # Open the Gripper
-            self.gripper_open()
-            time.sleep(1)
+        self.gripper_open()
+        time.sleep(1)
 
-            # Go to the position and orientation above the object
-            self.Go((pos_data[0], pos_data[1], 0.1, ori_data[0], ori_data[1], ori_data[2]))
+        # Go to the position and orientation above the object
+        self.Go((pos_data[0], pos_data[1], 0.1, 0.0, 0.0, ori_data))
 
-            # Go to grasp
-            self.Go((pos_data[0], pos_data[1], self.grasp_high, ori_data[0], ori_data[1], ori_data[2]))
+        # Go to grasp
+        self.Go((pos_data[0], pos_data[1], self.grasp_high, 0.0, 0.0, ori_data))
 
 
-            # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
-            # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
-            #             self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
-            #             self.grasp_predict_pose[2]+grasp_score[2])))
+        # self.trainer.update(np.asarray(([self.force_data[1]], [self.force_data[0]])),
+        # np.asarray((self.grasp_predict_pose[0]/self.grasp_param+grasp_score[0],
+        #             self.grasp_predict_pose[1]/self.grasp_param+grasp_score[1],
+        #             self.grasp_predict_pose[2]+grasp_score[2])))
 
-            # Close the Gripper
-            self.gripper_close()
+        # Close the Gripper
+        self.gripper_close()
 
-            self.Go(self.put_pose[0])
+        self.Go(self.put_pose[0])
 
-            self.Go(self.put_pose[1])
+        self.Go(self.put_pose[1])
 
-            self.gripper_open()
+        self.gripper_open()
 
-            # self.Explore()
-            self.Check = input("Check if it is grasp: [True], [False]")
+        # self.Explore()
+        self.Check = input("Check if it is grasp: [True], [False]")
 
-            if self.Check == 'True':
-                grasp_success = True
-                print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
+        if self.Check == 'True':
+            grasp_success = True
+            print("[IMPORTANT RESULT]: Nice Grasp!!! !^U^!")
 
-            elif self.Check == 'False':
-                grasp_success = False
-                print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
+        elif self.Check == 'False':
+            grasp_success = False
+            print("[IMPORTANT RESULT]: Nothing Grasped. TUT.TUT")
 
-            label_value, prev_reward_value = self.trainer.get_label_value(grasp_success)
+        # label_value, prev_reward_value = self.trainer.get_label_value(grasp_success)
 
-            self.trainer.backprop(self.prev_heatmap, self.prev_best_pix_ind, label_value)
+        # self.trainer.backprop(self.prev_heatmap, self.prev_best_pix_ind, label_value)
 
-            time.sleep(1)
-            # Pick the object up
-            self.Go((pos_data[0], pos_data[1], self.pre_grasp_high, ori_data[0], ori_data[1], ori_data[2]))
+        time.sleep(1)
+        # Pick the object up
+        self.Go((pos_data[0], pos_data[1], self.pre_grasp_high, 0.0, 0.0, ori_data))
 
-        else:
-            print("out of workspace limit, need to backprob to modify the params.")
+
 
     def gripper_open(self):
         """
