@@ -149,7 +149,7 @@ class UR5E(Robot):
             # object_position = [drop_x, drop_y, 0.15]
             # object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
             #? Drop in Fixed position and orientation
-            object_position = [-0.5, 0, 0.2]
+            object_position = [-0.6, 0.1, 0.2]
             object_orientation = [np.pi/2, 0, 0]
 
             object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
