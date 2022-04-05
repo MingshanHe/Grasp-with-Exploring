@@ -150,8 +150,8 @@ class QLearningTable:
         self.gamma = reward_decay
         self.epsilon = e_greedy
         # self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64)
-        self.global_alpha = 0.5
-        self.custom_beta  = 0.5
+        self.global_alpha = 0.1
+        self.custom_beta  = 2.5
         self.q_table = {}
 
     def choose_action(self, map_pos, explore_complete ,resolutions):
@@ -163,32 +163,32 @@ class QLearningTable:
         actions = [0, 0, 0, 0]
         # action selection
         if (map_pos[0]>=0 and map_pos[0] < int(resolutions/3)) and(map_pos[1]>=0 and map_pos[1] < int(resolutions/3)):
-            global_actions[0] = (3 - (explore_complete[3]+explore_complete[6]+explore_complete[7]))
-            global_actions[2] = (3 - (explore_complete[1]+explore_complete[2]+explore_complete[5]))
+            global_actions[0] = (1-explore_complete[3])+(0.5-explore_complete[6])+(0.5-explore_complete[7])
+            global_actions[2] = (1-explore_complete[1])+(0.5-explore_complete[2])+(0.5-explore_complete[5])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
 
         elif (map_pos[0]>=0 and map_pos[0] < int(resolutions/3)) and(map_pos[1]>=int(resolutions/3) and map_pos[1] < int(resolutions*2/3)):
-            global_actions[0] = (4 - (explore_complete[4]+explore_complete[6]+explore_complete[7]+explore_complete[8]))
+            global_actions[0] = (1-explore_complete[4])+(0.25-explore_complete[6])+(0.5-explore_complete[7])+(0.25-explore_complete[8])
             global_actions[2] = (1 - explore_complete[2])
             global_actions[3] = (1 - explore_complete[0])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
 
         elif (map_pos[0]>=0 and map_pos[0] < int(resolutions/3)) and(map_pos[1]>=int(resolutions*2/3) and map_pos[1] < int(resolutions)):
-            global_actions[0] = (3 - (explore_complete[5]+explore_complete[7]+explore_complete[8]))
-            global_actions[3] = (3 - (explore_complete[0]+explore_complete[1]+explore_complete[3]))
+            global_actions[0] = (1-explore_complete[5])+(0.25-explore_complete[7])+(0.5-explore_complete[8])
+            global_actions[3] = (0.5-explore_complete[0])+(1-explore_complete[1])+(0.25-explore_complete[3])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
@@ -196,10 +196,10 @@ class QLearningTable:
         elif (map_pos[0]>=int(resolutions/3) and map_pos[0] < int(resolutions*2/3)) and(map_pos[1]>=0 and map_pos[1] < int(resolutions/3)):
             global_actions[0] = (1 - explore_complete[6])
             global_actions[1] = (1 - explore_complete[0])
-            global_actions[2] = (4 - (explore_complete[2]+explore_complete[4]+explore_complete[5]+explore_complete[8]))
+            global_actions[2] = (0.25-explore_complete[2])+(1-explore_complete[4])+(0.5-explore_complete[5])+(0.25-explore_complete[8])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
@@ -211,7 +211,7 @@ class QLearningTable:
             global_actions[3] = (1 - explore_complete[3])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
@@ -219,42 +219,42 @@ class QLearningTable:
         elif (map_pos[0]>=int(resolutions/3) and map_pos[0] < int(resolutions*2/3)) and(map_pos[1]>=int(resolutions*2/3) and map_pos[1] < int(resolutions)):
             global_actions[0] = (1 - explore_complete[8])
             global_actions[1] = (1 - explore_complete[2])
-            global_actions[3] = (4 - (explore_complete[0]+explore_complete[3]+explore_complete[4]+explore_complete[6]))
+            global_actions[3] = (0.25-explore_complete[0])+(0.5-explore_complete[3])+(1-explore_complete[4])+(0.25-explore_complete[6])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
 
         elif (map_pos[0]>=int(resolutions*2/3) and map_pos[0] < int(resolutions)) and(map_pos[1]>=0 and map_pos[1] < int(resolutions/3)):
-            global_actions[1] = (3 - (explore_complete[0]+explore_complete[1]+explore_complete[3]))
-            global_actions[2] = (3 - (explore_complete[5]+explore_complete[7]+explore_complete[8]))
+            global_actions[1] = (0.5-explore_complete[0])+(0.25-explore_complete[1])+(1-explore_complete[3])
+            global_actions[2] = (0.25-explore_complete[5])+(1-explore_complete[7])+(0.5-explore_complete[8])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
 
         elif (map_pos[0]>=int(resolutions*2/3) and map_pos[0] < int(resolutions)) and(map_pos[1]>=int(resolutions/3) and map_pos[1] < int(resolutions*2/3)):
-            global_actions[1] = (4 - (explore_complete[0]+explore_complete[1]+explore_complete[2]+explore_complete[4]))
+            global_actions[1] = (0.25-explore_complete[0])+(0.5-explore_complete[1])+(0.25-explore_complete[2])+(1-explore_complete[4])
             global_actions[2] = (1 - explore_complete[8])
             global_actions[3] = (1 - explore_complete[6])
             for i in range(4):
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
 
         elif (map_pos[0]>=int(resolutions*2/3) and map_pos[0] < int(resolutions)) and(map_pos[1]>=int(resolutions*2/3) and map_pos[1] < int(resolutions)):
-            global_actions[1] = (3 - (explore_complete[1]+explore_complete[2]+explore_complete[5]))
-            global_actions[3] = (3 - (explore_complete[3]+explore_complete[6]+explore_complete[7]))
+            global_actions[1] = (0.25-explore_complete[1])+(0.5-explore_complete[2])+(1-explore_complete[5])
+            global_actions[3] = (0.25-explore_complete[3])+(0.5-explore_complete[6])+(1-explore_complete[7])
             for i in range(4):
                 # custom_actions[i] = np.random.uniform()
                 custom_actions[i] = np.exp(-self.q_table[state][i])
-                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta
+                actions[i] = global_actions[i] * self.global_alpha + custom_actions[i] * self.custom_beta + np.random.normal() * self.global_alpha
 
 
             global_actions = [0, 0, 0, 0]
