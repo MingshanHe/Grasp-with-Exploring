@@ -3,6 +3,7 @@ from turtle import pos
 from urx.robot import Robot
 from utils import Logger
 from utils import Filter
+import utils
 from trainer import NeuralNetwork, Trainer
 from graph  import Graph
 from explore import FrontierSearch
@@ -15,6 +16,8 @@ import time
 import struct
 import os
 
+import cv2
+
 
 class UR5E(Robot):
     def __init__(self):
@@ -23,6 +26,9 @@ class UR5E(Robot):
         CoppeliaSim(V-rep): vrep-api in Simulation
         urx(third party package): urx in Real World
         """
+        #? Initialize data logger
+        logging_directory = os.path.abspath('logs')
+        self.datalogger = Logger(logging_directory) 
 
         # Set up grasp params
         self.pre_grasp_high = 0.1
@@ -100,6 +106,9 @@ class UR5E(Robot):
         # Add objects to simulation environment
         self.add_objects()
 
+        # Setup virtual camera in simulation
+        self.setup_sim_camera()
+
         #? Initialize trainer
         # self.trainer = NeuralNetwork([2,4,3])
         self.unit = 0.02
@@ -110,9 +119,7 @@ class UR5E(Robot):
         self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
 
 
-        #? Initialize data logger
-        logging_directory = os.path.abspath('logs')
-        self.datalogger = Logger(logging_directory)
+
 
         #? Initialize filter
         self.forceFilter = Filter()
@@ -408,3 +415,53 @@ class UR5E(Robot):
             self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,
             'GripperClose',[0], [0.0], "false", bytearray(), vrep.simx_opmode_blocking)
         time.sleep(1)
+
+    def setup_sim_camera(self):
+
+        # Get handle to camera
+        sim_ret, self.cam_handle = vrep.simxGetObjectHandle(self.sim_client, 'Vision_sensor_persp', vrep.simx_opmode_blocking)
+
+        # Get camera pose and intrinsics in simulation
+        sim_ret, cam_position = vrep.simxGetObjectPosition(self.sim_client, self.cam_handle, -1, vrep.simx_opmode_blocking)
+        sim_ret, cam_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.cam_handle, -1, vrep.simx_opmode_blocking)
+        cam_trans = np.eye(4,4)
+        cam_trans[0:3,3] = np.asarray(cam_position)
+        cam_orientation = [-cam_orientation[0], -cam_orientation[1], -cam_orientation[2]]
+        cam_rotm = np.eye(4,4)
+        cam_rotm[0:3,0:3] = np.linalg.inv(utils.euler2rotm(cam_orientation))
+        self.cam_pose = np.dot(cam_trans, cam_rotm) # Compute rigid transformation representating camera pose
+        self.cam_intrinsics = np.asarray([[618.62, 0, 320], [0, 618.62, 240], [0, 0, 1]])
+        self.cam_depth_scale = 1
+
+        # Get background image
+        self.bg_color_img, self.bg_depth_img = self.get_camera_data()
+        self.bg_depth_img = self.bg_depth_img * self.cam_depth_scale
+        self.datalogger.save_colorImg(self.bg_color_img)
+        self.datalogger.save_depthImg(self.bg_depth_img)
+        color_heightmap, depth_heightmap = utils.get_heightmap(self.bg_color_img,
+        self.bg_depth_img, self.cam_intrinsics, self.cam_pose, self.workspace_limits, 0.02)
+        self.datalogger.save_depthheatImg(depth_heightmap*2550)
+
+
+    def get_camera_data(self):
+        # Get color image from simulation
+        sim_ret, resolution, raw_image = vrep.simxGetVisionSensorImage(self.sim_client, self.cam_handle, 0, vrep.simx_opmode_blocking)
+        color_img = np.asarray(raw_image)
+        color_img.shape = (resolution[1], resolution[0], 3)
+        color_img = color_img.astype(np.float)/255
+        color_img[color_img < 0] += 1
+        color_img *= 255
+        color_img = np.fliplr(color_img)
+        color_img = color_img.astype(np.uint8)
+
+        # Get depth image from simulation
+        sim_ret, resolution, depth_buffer = vrep.simxGetVisionSensorDepthBuffer(self.sim_client, self.cam_handle, vrep.simx_opmode_blocking)
+        depth_img = np.asarray(depth_buffer)
+        depth_img.shape = (resolution[1], resolution[0])
+        depth_img = np.fliplr(depth_img)
+        zNear = 0.01
+        zFar = 1
+        depth_img = (depth_img * (zFar - zNear) + zNear)
+
+
+        return color_img, depth_img
