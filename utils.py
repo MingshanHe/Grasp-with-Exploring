@@ -38,9 +38,15 @@ class Logger():
 
 
     def save_force_data(self, force_data):
+        '''
+        save the force data value
+        '''
         np.savetxt(os.path.join(self.force_sensor_data_directory, 'foce_data.csv'), force_data, delimiter=',')
 
     def save_heatmaps(self, heatmap):
+        '''
+        save the heatmaps numpy data to img
+        '''
         # heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
         # sns.set()
         # ax = sns.heatmap(heatmap)
@@ -50,9 +56,15 @@ class Logger():
         cv2.imwrite(os.path.join(self.image_directory, 'heatmap.png'), heatmap)
 
     def save_depthImg(self, depthImg):
+        '''
+        save the depth image
+        '''
         cv2.imwrite(os.path.join(self.image_directory, 'depth.png'), depthImg)
 
     def save_colorImg(self, colorImg):
+        '''
+        save the color image with RGB
+        '''
         cv2.imwrite(os.path.join(self.image_directory, 'color.png'), colorImg)
 
     def save_depthheatImg(self, heatImg):
@@ -69,6 +81,9 @@ class Filter():
         self.Initial = False
 
     def LowPassFilter(self, data, filterParam=0.2):
+        '''
+        Low Pass Filter Function
+        '''
         if not (self.Initial):
             self.OldData = data
             self.Initial = True
@@ -101,6 +116,9 @@ class CrossEntropyLoss2d(nn.Module):
 
 # Get rotation matrix from euler angles
 def euler2rotm(theta):
+    '''
+    Get rotation matrix from euler angles
+    '''
     R_x = np.array([[1,         0,                  0                   ],
                     [0,         math.cos(theta[0]), -math.sin(theta[0]) ],
                     [0,         math.sin(theta[0]), math.cos(theta[0])  ]
@@ -117,7 +135,9 @@ def euler2rotm(theta):
     return R
 
 def get_pointcloud(color_img, depth_img, camera_intrinsics):
-
+    '''
+    Get point Cloud function
+    '''
     # Get depth image size
     im_h = depth_img.shape[0]
     im_w = depth_img.shape[1]
@@ -146,7 +166,9 @@ def get_pointcloud(color_img, depth_img, camera_intrinsics):
 
 
 def get_heightmap(color_img, depth_img, cam_intrinsics, cam_pose, workspace_limits, heightmap_resolution):
-
+    '''
+    Get the heightmap with depth image
+    '''
     # Compute heightmap size
     heightmap_size = np.round(((workspace_limits[1][1] - workspace_limits[1][0])/heightmap_resolution, (workspace_limits[0][1] - workspace_limits[0][0])/heightmap_resolution)).astype(int)
 
