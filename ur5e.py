@@ -4,8 +4,7 @@ from urx.robot import Robot
 from utils import Logger
 from utils import Filter
 import utils
-from trainer import NeuralNetwork, Trainer
-from graph  import Graph
+from trainer import Trainer
 from explore import FrontierSearch
 from model import QLearningTable
 
@@ -28,13 +27,13 @@ class UR5E(Robot):
         """
         #? Initialize data logger
         logging_directory = os.path.abspath('logs')
-        self.datalogger = Logger(logging_directory) 
+        self.datalogger = Logger(logging_directory)
 
-        # Set up grasp params
+        #! Set up grasp params
         self.pre_grasp_high = 0.1
         self.grasp_high = 0.02
 
-        # Setup some params
+        #! Setup some params
         self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [-0.0001, 0.4]])
 
         self.home_pose = [-0.3, 0.0, 0.30, 0.0, 0.0, 0.0]
@@ -59,7 +58,8 @@ class UR5E(Robot):
 
         self.detected_threshold = 2.0
         self.detect_iterations  = 5000
-        # Define colors for object meshes (Tableau palette)
+
+        #! Define colors for object meshes (Tableau palette)
         self.color_space = np.asarray([[78.0, 121.0, 167.0], # blue
                                         [89.0, 161.0, 79.0], # green
                                         [156, 117, 95], # brown
@@ -71,14 +71,16 @@ class UR5E(Robot):
                                         [118, 183, 178], # cyan
                                         [255, 157, 167]])/255.0 #pink
 
-        # Read files in object mesh directory
-        self.obj_mesh_dir = os.path.abspath('simBindings/objects/blocks')
-        self.num_obj = 1
-        self.mesh_list = os.listdir(self.obj_mesh_dir)
+        #? Initialize trainer
+        self.unit = 0.02
+        self.resolutions = 600
+        # self.trainer = Trainer(force_cpu=False)
+        self.frontierSearch = FrontierSearch(self.workspace_limits, self.resolutions)
+        self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
 
-        # Randomly choose objects to add to scene
-        self.obj_mesh_ind = np.random.randint(0, len(self.mesh_list), size=self.num_obj)
-        self.obj_mesh_color = self.color_space[np.asarray(range(10)), :]
+        #? Initialize filter
+        self.forceFilter = Filter()
+        self.torqueFilter = Filter()
 
         # Make sure to have the server side running in V-REP:
         # in a child script of a V-REP scene, add following command
@@ -103,27 +105,20 @@ class UR5E(Robot):
             print('[ENVIRONMENT STATE]: Connected to simulation.')
             self.restart_sim()
 
+        #! Read files in object mesh directory
+        self.obj_mesh_dir = os.path.abspath('simBindings/objects/blocks')
+        self.num_obj = 1
+        self.mesh_list = os.listdir(self.obj_mesh_dir)
+
+        #! Randomly choose objects to add to scene
+        self.obj_mesh_ind = np.random.randint(0, len(self.mesh_list), size=self.num_obj)
+        self.obj_mesh_color = self.color_space[np.asarray(range(10)), :]
+
         # Add objects to simulation environment
         self.add_objects()
 
         # Setup virtual camera in simulation
         self.setup_sim_camera()
-
-        #? Initialize trainer
-        # self.trainer = NeuralNetwork([2,4,3])
-        self.unit = 0.02
-        self.resolutions = 600
-        self.trainer = Trainer(force_cpu=False)
-        self.graph = Graph()
-        self.frontierSearch = FrontierSearch(self.workspace_limits, self.resolutions)
-        self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
-
-
-
-
-        #? Initialize filter
-        self.forceFilter = Filter()
-        self.torqueFilter = Filter()
 
         self.force_data = []
         self.torque_data = []
@@ -248,8 +243,6 @@ class UR5E(Robot):
             self.Detect_num += 1
             return True
         else:
-            # print(forceVector)
-            # self.forceFilter.LowPassFilterClear()
             self.Detected = False
             return False
 
@@ -315,29 +308,7 @@ class UR5E(Robot):
                 self.reward = 1
                 self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
 
-    def Train(self, use_heuristic):
 
-        grasp_predictions, state_feat = self.trainer.forward(self.heatmap, is_volatile=True)
-
-        best_grasp_conf = np.max(grasp_predictions)
-        print('[TRAINER INFO]: Primitive GRASP confidence scores: %f' % (best_grasp_conf))
-
-        if use_heuristic:
-            best_pix_ind = self.trainer.grasp_heuristic(self.heatmap)
-            predicted_value = grasp_predictions[best_pix_ind]
-        else:
-            best_pix_ind = np.unravel_index(np.argmax(grasp_predictions), grasp_predictions.shape)
-            predicted_value = np.max(grasp_predictions)
-        self.prev_best_pix_ind = best_pix_ind
-        print('[TRAINER INFO]: Action Grasp at (%d, %d, %d)' % (best_pix_ind[0], best_pix_ind[1], best_pix_ind[2]))
-        best_rotation_angle = np.deg2rad(best_pix_ind[0]*(360.0/self.trainer.model.num_rotations))
-        best_pix_x = best_pix_ind[2]
-        best_pix_y = best_pix_ind[1]
-
-        primitive_position = [best_pix_x * self.trainer.heatmap_resolution + self.workspace_limits[0][0], 
-        best_pix_y * self.trainer.heatmap_resolution + self.workspace_limits[1][0]]
-
-        self.Grasp(pos_data=(primitive_position[0], primitive_position[1]), ori_data=(np.pi/2, best_rotation_angle, np.pi/2))
 
 
     def Grasp(self, pos_data, ori_data):
@@ -373,7 +344,6 @@ class UR5E(Robot):
 
         self.gripper_open()
 
-        # self.Explore()
         self.Check = input("Check if it is grasp: [True], [False]")
 
         if self.Check == 'True':
@@ -431,11 +401,12 @@ class UR5E(Robot):
         cam_rotm[0:3,0:3] = np.linalg.inv(utils.euler2rotm(cam_orientation))
         self.cam_pose = np.dot(cam_trans, cam_rotm) # Compute rigid transformation representating camera pose
         self.cam_intrinsics = np.asarray([[618.62, 0, 320], [0, 618.62, 240], [0, 0, 1]])
-        self.cam_depth_scale = 1
+        self.cam_depth_scale = 2550
 
         # Get background image
         self.bg_color_img, self.bg_depth_img = self.get_camera_data()
         self.bg_depth_img = self.bg_depth_img * self.cam_depth_scale
+        # print(self.bg_depth_img)
         self.datalogger.save_colorImg(self.bg_color_img)
         self.datalogger.save_depthImg(self.bg_depth_img)
         color_heightmap, depth_heightmap = utils.get_heightmap(self.bg_color_img,
@@ -465,3 +436,27 @@ class UR5E(Robot):
 
 
         return color_img, depth_img
+
+    # def Train(self, use_heuristic):
+
+    #     grasp_predictions, state_feat = self.trainer.forward(self.heatmap, is_volatile=True)
+
+    #     best_grasp_conf = np.max(grasp_predictions)
+    #     print('[TRAINER INFO]: Primitive GRASP confidence scores: %f' % (best_grasp_conf))
+
+    #     if use_heuristic:
+    #         best_pix_ind = self.trainer.grasp_heuristic(self.heatmap)
+    #         predicted_value = grasp_predictions[best_pix_ind]
+    #     else:
+    #         best_pix_ind = np.unravel_index(np.argmax(grasp_predictions), grasp_predictions.shape)
+    #         predicted_value = np.max(grasp_predictions)
+    #     self.prev_best_pix_ind = best_pix_ind
+    #     print('[TRAINER INFO]: Action Grasp at (%d, %d, %d)' % (best_pix_ind[0], best_pix_ind[1], best_pix_ind[2]))
+    #     best_rotation_angle = np.deg2rad(best_pix_ind[0]*(360.0/self.trainer.model.num_rotations))
+    #     best_pix_x = best_pix_ind[2]
+    #     best_pix_y = best_pix_ind[1]
+
+    #     primitive_position = [best_pix_x * self.trainer.heatmap_resolution + self.workspace_limits[0][0], 
+    #     best_pix_y * self.trainer.heatmap_resolution + self.workspace_limits[1][0]]
+
+    #     self.Grasp(pos_data=(primitive_position[0], primitive_position[1]), ori_data=(np.pi/2, best_rotation_angle, np.pi/2))
