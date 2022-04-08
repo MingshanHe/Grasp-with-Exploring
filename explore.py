@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 
 
 class Frontier():
+    '''
+    Frontier Class Struct to store data
+    '''
     def __init__(self):
         self.size = None
         self.min_distance = None
@@ -21,6 +24,9 @@ class Frontier():
 
 
 class HeatMap():
+    '''
+    HeatMap Class to Create heatmap and update
+    '''
     def __init__(self, workspace_limits, resolutions):
         self.heatmap = np.zeros((resolutions, resolutions))
         self.explore_complete = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -39,17 +45,28 @@ class HeatMap():
         self.sub_range8 = {}
 
     def MapToWorld(self, idx):
+        '''
+        using workspace limits to compute the world position of the map postion
+        map_pos -> world_pos
+        '''
         world_x = (idx[0] * np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))/self.resolutions + self.workspace_limits[0][0]
         world_y = (idx[1] * np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))/self.resolutions + self.workspace_limits[1][0]
         return([world_x, world_y])
 
     def WorldToMap(self, idx):
+        '''
+        using workspace limits to compute the map position of the world position
+        world_pos -> map_pos
+        '''
         map_x = int((idx[0] - self.workspace_limits[0][0]) * self.resolutions/np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))
         map_y = int((idx[1] - self.workspace_limits[1][0]) * self.resolutions/np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))
         return([map_x, map_y])
 
-    def update_explore_compelete(self, pos):
-
+    def update_explore_complete(self, pos):
+        '''
+        After the explore step,
+        update the explore complete of the nine space
+        '''
         if (pos[0]>=0 and pos[0] < int(self.resolutions/3)) and(pos[1]>=0 and pos[1] < int(self.resolutions/3)):
             state = str(pos[0])+','+str(pos[1])
             if state not in self.sub_range0:
@@ -97,11 +114,18 @@ class HeatMap():
                 self.explore_complete[8] = (self.explore_complete[8]*(self.resolutions*self.resolutions)/9 + 1)/((self.resolutions*self.resolutions)/9)
 
     def updatemap(self, x, y, value):
+        '''
+        Update the heatmap with given value
+        '''
         if (x >= 0 and x < self.heatmap.shape[0]) and (y >=0 and y < self.heatmap.shape[1]):
             self.heatmap[x][y] =  value
 
     def updateFree(self, pos, angle):
-        self.update_explore_compelete(pos)
+        '''
+        determine the position of the robot end,
+        and update the heatmap with free value
+        '''
+        self.update_explore_complete(pos)
         for i in range(self.range_):
             for j in range(self.range_):
                 #TODO: Add some if condition to judge in the map limits
@@ -123,7 +147,11 @@ class HeatMap():
                 self.updatemap(x, y, 120)
 
     def updateFrontier(self, pos, angle):
-        self.update_explore_compelete(pos)
+        '''
+        determine the position of the robot end,
+        and update the heatmap with frontier value
+        '''
+        self.update_explore_complete(pos)
         for i in range(self.range_):
             for j in range(self.range_):
                 #TODO: Add some if condition to judge in the map limits
@@ -146,6 +174,10 @@ class HeatMap():
 
 
 class FrontierSearch():
+    '''
+    FrontierSearch Class with heatmap
+    and act the action
+    '''
     def __init__(self,workspace_limits, resolutions):
         self.map    = HeatMap(workspace_limits, resolutions)
         self.action_space = ['x+', 'x-', 'y+', 'y-']
@@ -154,6 +186,9 @@ class FrontierSearch():
         self.derive_points = []
 
     def buildNewFree(self, initial_cell, initial_angle):
+        '''
+        built a New Free space
+        '''
         # initialize frontier structure
         frontier = Frontier()
         frontier.centroid = self.map.WorldToMap(initial_cell)
@@ -163,7 +198,9 @@ class FrontierSearch():
         self.map.updateFree(frontier.centroid, frontier.direct)
 
     def buildNewFrontier(self, initial_cell, initial_force, initial_angle):
-
+        '''
+        built a New Frontier space
+        '''
         # initialize frontier structure
         frontier = Frontier()
         frontier.centroid = self.map.WorldToMap(initial_cell)
@@ -174,7 +211,6 @@ class FrontierSearch():
         self.map.updateFrontier(frontier.centroid, frontier.direct)
 
         self.points.append(frontier.centroid)
-        # print(self.points)
 
         # build 2 neighboor
         # for i in range(1):
@@ -211,7 +247,9 @@ class FrontierSearch():
         return act_pos
 
     def grasp_point_angle(self):
-
+        '''
+        Return the desired grasp position and angle
+        '''
         grasp_point = [0.0, 0.0]
         for i in range(len(self.points)):
             grasp_point[0] += self.points[i][0]
