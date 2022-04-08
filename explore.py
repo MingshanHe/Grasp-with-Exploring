@@ -1,8 +1,4 @@
 import numpy as np
-from sympy import false, true
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 
 class Frontier():
     '''
@@ -20,8 +16,6 @@ class Frontier():
         self.centroid = None
         self.force    = None
         self.direct   = None
-
-
 
 class HeatMap():
     '''
