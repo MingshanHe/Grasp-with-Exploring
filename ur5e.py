@@ -6,7 +6,6 @@ from urx.robot import Robot
 from utils import Logger
 from utils import Filter
 import utils
-from trainer import Trainer
 from explore import FrontierSearch
 from model import QLearningTable
 
@@ -18,6 +17,8 @@ import struct
 import os
 
 import cv2
+
+import test
 
 
 class UR5E(Robot):
@@ -36,27 +37,16 @@ class UR5E(Robot):
         self.grasp_high = 0.02
 
         #! Setup some params
-        self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [0.0001, 0.4]])
+        self.workspace_limits = np.asarray([[-0.75, -0.25], [-0.25, 0.25], [0.0001, 0.4]])
 
-        self.home_pose = [-0.3, 0.0, 0.30, 0.0, 0.0, 0.0]
+        self.home_pose = [-0.25, 0.0, 0.30, 0.0, 0.0, 0.0]
 
-        self.put_pose  = [[-0.3, -0.3, self.pre_grasp_high, 0.0, 0.0, np.pi/2],
-                        [-0.3, -0.3, self.grasp_high, 0.0, 0.0, np.pi/2]]
+        self.put_pose  = [[-0.5, -0.3, self.pre_grasp_high, 0.0, 0.0, np.pi/2],
+                        [-0.5, -0.3, self.grasp_high, 0.0, 0.0, np.pi/2]]
 
-        self.workstart_pose = [[-0.3, 0.0, 0.1, 0.0, 0.0, 0.0],
-                            [-0.7,    0.0, 0.1, 0.0, 0.0, 0.0],
-                            [-0.500, -0.2, 0.1, 0.0, 0.0, 0.0],
-                            [-0.500,  0.2, 0.1, 0.0, 0.0, 0.0]]
+        self.workstart_pose = [-0.25, 0.0, 0.1, 0.0, 0.0, 0.0]
 
-        self.explore_start_pose = [[-0.3, 0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.7,    0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
-                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
-
-        self.explore_end_pose = [[-0.7, 0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.3,    0.0, self.grasp_high, 0.0, 0.0, 0.0],
-                            [-0.500,  0.2, self.grasp_high, 0.0, 0.0, np.pi/3],
-                            [-0.500, -0.2, self.grasp_high, 0.0, 0.0, np.pi/3]]
+        self.explore_start_pose = [-0.25, 0.0, self.grasp_high, 0.0, 0.0, 0.0]
 
         self.detected_threshold = 2.0
         self.detect_iterations  = 5000
@@ -226,7 +216,7 @@ class UR5E(Robot):
         Let the Robot move to
         the start pose of work
         """
-        self.Go(self.workstart_pose[0])
+        self.Go(self.workstart_pose)
 
     def DetectObject(self):
         """
@@ -252,24 +242,21 @@ class UR5E(Robot):
         """
         Expore and Grasp
         """
-        self. Go(self.explore_start_pose[0])
-        for i in range(self.detect_iterations):
+        self. Go(self.explore_start_pose)
 
+        actions = test.Dyn_Q()
+
+        for i in range(len(actions)):
             # Pre: close the gripper
             self.gripper_close()
             time.sleep(1)
-
             # Get Current end state
             sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
             sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
-
             # RL
             w2m_pos = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
-            heatmap = self.frontierSearch.map.heatmap
+            move_pos = self.frontierSearch.step(action=actions[i], current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
 
-            self.action = self.RL.choose_action(map_pos=w2m_pos, explore_complete=self.frontierSearch.map.explore_complete, resolutions=self.resolutions)
-
-            move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
             # Compute gripper position and linear movement increments
             move_direction = np.asarray([move_pos[0] - UR5_target_position[0], move_pos[1] - UR5_target_position[1], 0.0])
             move_magnitude = np.linalg.norm(move_direction)
@@ -281,34 +268,64 @@ class UR5E(Robot):
             # Simultaneously move and rotate gripper
             for step_iter in range(num_move_steps):
                 vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+            vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
 
-                # build new free heatmap
-                self.frontierSearch.buildNewFree(
-                    initial_cell=(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps)),
-                    initial_angle=UR5_target_orientation[2]
-                )
-                if self.DetectObject() :
-                    # print("[ENVIRONMENT STATE]: Touch a Object")
-                    self.reward = 100
-                    self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
-                    break
+        # for i in range(self.detect_iterations):
 
-            # Check the Object to Grasp
-            if self.Detected:
-                sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
-                self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
-                    initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
-                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
-                self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
-                if self.Detect_num == 4:
-                    print("[STRATEGY INFO]: Try to Grasp the object.")
-                    grasp_point, grasp_angle = self.frontierSearch.grasp_point_angle()
-                    self.Grasp(pos_data=grasp_point, ori_data=grasp_angle)
+        #     # Pre: close the gripper
+        #     self.gripper_close()
+        #     time.sleep(1)
 
-            else:
-                vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
-                self.reward = 1
-                self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
+        #     # Get Current end state
+        #     sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+        #     sim_ret, UR5_target_orientation = vrep.simxGetObjectOrientation(self.sim_client, self.UR5_target_handle, -1, vrep.simx_opmode_blocking)
+
+        #     # RL
+        #     w2m_pos = self.frontierSearch.map.WorldToMap((UR5_target_position[0],UR5_target_position[1]))
+        #     heatmap = self.frontierSearch.map.heatmap
+
+        #     self.action = self.RL.choose_action(map_pos=w2m_pos, explore_complete=self.frontierSearch.map.explore_complete, resolutions=self.resolutions)
+
+        #     move_pos = self.frontierSearch.step(action=self.action, current_pos=(UR5_target_position[0], UR5_target_position[1]), unit=self.unit)
+        #     # Compute gripper position and linear movement increments
+        #     move_direction = np.asarray([move_pos[0] - UR5_target_position[0], move_pos[1] - UR5_target_position[1], 0.0])
+        #     move_magnitude = np.linalg.norm(move_direction)
+        #     move_step = 0.0005*move_direction/(move_magnitude+1e-10)
+        #     num_move_steps = max(int(np.floor((move_direction[0])/(move_step[0]+1e-10))),
+        #                         int(np.floor((move_direction[1])/(move_step[1]+1e-10))),
+        #                         int(np.floor((move_direction[2])/(move_step[2]+1e-10))))
+
+        #     # Simultaneously move and rotate gripper
+        #     for step_iter in range(num_move_steps):
+        #         vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] + move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+
+        #         # build new free heatmap
+        #         self.frontierSearch.buildNewFree(
+        #             initial_cell=(UR5_target_position[0] + move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] + move_step[1]*min(step_iter,num_move_steps)),
+        #             initial_angle=UR5_target_orientation[2]
+        #         )
+        #         if self.DetectObject() :
+        #             # print("[ENVIRONMENT STATE]: Touch a Object")
+        #             self.reward = 100
+        #             self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
+        #             break
+
+        #     # Check the Object to Grasp
+        #     if self.Detected:
+        #         sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
+        #         self.frontierSearch.buildNewFrontier(initial_cell=(UR5_target_position[0], UR5_target_position[1]),
+        #             initial_force=self.force_data, initial_angle=UR5_target_orientation[2])
+        #         vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] - move_step[0]*min(step_iter,num_move_steps), UR5_target_position[1] - move_step[1]*min(step_iter,num_move_steps), UR5_target_position[2] - move_step[2]*min(step_iter,num_move_steps)),vrep.simx_opmode_blocking)
+        #         self.datalogger.save_heatmaps(self.frontierSearch.map.heatmap)
+        #         if self.Detect_num == 4:
+        #             print("[STRATEGY INFO]: Try to Grasp the object.")
+        #             grasp_point, grasp_angle = self.frontierSearch.grasp_point_angle()
+        #             self.Grasp(pos_data=grasp_point, ori_data=grasp_angle)
+
+        #     else:
+        #         vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(move_pos[0], move_pos[1], UR5_target_position[2]),vrep.simx_opmode_blocking)
+        #         self.reward = 1
+        #         self.RL.learn(s=w2m_pos,a=self.action,r=self.reward)
 
 
 
