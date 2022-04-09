@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from utils import CrossEntropyLoss2d
-from model import reinforcement_net
+
 from scipy import ndimage
 
 
