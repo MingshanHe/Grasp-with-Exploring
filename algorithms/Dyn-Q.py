@@ -14,10 +14,10 @@ import os
 class Maze:
     def __init__(self):
         # maze width
-        self.WORLD_WIDTH = 10
+        self.WORLD_WIDTH = 16
 
         # maze height
-        self.WORLD_HEIGHT = 10
+        self.WORLD_HEIGHT = 16
 
         # all possible actions
         self.ACTION_UP = 0
@@ -27,11 +27,11 @@ class Maze:
         self.actions = [self.ACTION_UP, self.ACTION_DOWN, self.ACTION_LEFT, self.ACTION_RIGHT]
 
         # start state
-        self.START_STATE = [2, 0]
+        self.START_STATE = [15, 7]
 
         # goal state
-        # self.GOAL_STATES = [[0, 8],[2,1]]
-        self.GOAL_STATES = [[0, 9]]
+        self.GOAL_STATES = [[3, 10],[10, 3]]
+        # self.GOAL_STATES = [[0, 9]]
 
         # all obstacles
         self.obstacles = [[1, 2], [2, 2], [3, 2], [0, 7], [1, 7], [2, 7], [4, 5]]
@@ -230,7 +230,7 @@ if __name__ == '__main__':
 
     runs = 1
     episodes = 10
-    planning_steps = [0, 5]
+    planning_steps = [5]
     steps = np.zeros((len(planning_steps), episodes))
 
     for run in tqdm(range(runs)):
