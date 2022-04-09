@@ -1,5 +1,7 @@
 from logging import error
 from turtle import pos
+
+from cv2 import mean
 from urx.robot import Robot
 from utils import Logger
 from utils import Filter
@@ -34,7 +36,7 @@ class UR5E(Robot):
         self.grasp_high = 0.02
 
         #! Setup some params
-        self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [-0.0001, 0.4]])
+        self.workspace_limits = np.asarray([[-0.7, -0.3], [-0.2, 0.2], [0.0001, 0.4]])
 
         self.home_pose = [-0.3, 0.0, 0.30, 0.0, 0.0, 0.0]
 
@@ -389,7 +391,7 @@ class UR5E(Robot):
     def setup_sim_camera(self):
 
         # Get handle to camera
-        sim_ret, self.cam_handle = vrep.simxGetObjectHandle(self.sim_client, 'Vision_sensor_persp', vrep.simx_opmode_blocking)
+        sim_ret, self.cam_handle = vrep.simxGetObjectHandle(self.sim_client, 'Vision_sensor_ortho', vrep.simx_opmode_blocking)
 
         # Get camera pose and intrinsics in simulation
         sim_ret, cam_position = vrep.simxGetObjectPosition(self.sim_client, self.cam_handle, -1, vrep.simx_opmode_blocking)
@@ -401,7 +403,7 @@ class UR5E(Robot):
         cam_rotm[0:3,0:3] = np.linalg.inv(utils.euler2rotm(cam_orientation))
         self.cam_pose = np.dot(cam_trans, cam_rotm) # Compute rigid transformation representating camera pose
         self.cam_intrinsics = np.asarray([[618.62, 0, 320], [0, 618.62, 240], [0, 0, 1]])
-        self.cam_depth_scale = 2550
+        self.cam_depth_scale = 1
 
         # Get background image
         self.bg_color_img, self.bg_depth_img = self.get_camera_data()
@@ -409,9 +411,6 @@ class UR5E(Robot):
         # print(self.bg_depth_img)
         self.datalogger.save_colorImg(self.bg_color_img)
         self.datalogger.save_depthImg(self.bg_depth_img)
-        color_heightmap, depth_heightmap = utils.get_heightmap(self.bg_color_img,
-        self.bg_depth_img, self.cam_intrinsics, self.cam_pose, self.workspace_limits, 0.02)
-        self.datalogger.save_depthheatImg(depth_heightmap*2550)
 
 
     def get_camera_data(self):
@@ -434,6 +433,9 @@ class UR5E(Robot):
         zFar = 1
         depth_img = (depth_img * (zFar - zNear) + zNear)
 
+        mean_ = np.mean(depth_img)
+        depth_img[depth_img >= mean_] = 255
+        depth_img[depth_img < mean_] = 0
 
         return color_img, depth_img
 
