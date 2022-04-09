@@ -4,7 +4,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import heapq
-from copy import deepcopy
+from copy import copy, deepcopy
 import os
 
 
@@ -14,10 +14,10 @@ import os
 class Maze:
     def __init__(self):
         # maze width
-        self.WORLD_WIDTH = 9
+        self.WORLD_WIDTH = 10
 
         # maze height
-        self.WORLD_HEIGHT = 6
+        self.WORLD_HEIGHT = 10
 
         # all possible actions
         self.ACTION_UP = 0
@@ -30,7 +30,8 @@ class Maze:
         self.START_STATE = [2, 0]
 
         # goal state
-        self.GOAL_STATES = [[0, 8]]
+        # self.GOAL_STATES = [[0, 8],[2,1]]
+        self.GOAL_STATES = [[0, 9]]
 
         # all obstacles
         self.obstacles = [[1, 2], [2, 2], [3, 2], [0, 7], [1, 7], [2, 7], [4, 5]]
@@ -54,7 +55,7 @@ class Maze:
 
     # take @action in @state
     # @return: [new state, reward]
-    def step(self, state, action):
+    def step(self, state, action, ends):
         x, y = state
         if action == self.ACTION_UP:
             x = max(x - 1, 0)
@@ -66,7 +67,7 @@ class Maze:
             y = min(y + 1, self.WORLD_WIDTH - 1)
         if [x, y] in self.obstacles:
             x, y = state
-        if [x, y] in self.GOAL_STATES:
+        if [x, y] in ends:
             reward = 1.0
         else:
             reward = 0.0
@@ -140,8 +141,10 @@ def choose_action(state, q_value, maze, dyna_params):
 # @dyna_params: several params for the algorithm
 def dyna_q(q_value, model, maze, dyna_params):
     state = maze.START_STATE
+    ends = copy(maze.GOAL_STATES)
     steps = 0
-    while state not in maze.GOAL_STATES:
+    while ends:
+
         # track the steps
         steps += 1
 
@@ -149,7 +152,7 @@ def dyna_q(q_value, model, maze, dyna_params):
         action = choose_action(state, q_value, maze, dyna_params)
 
         # take action
-        next_state, reward = maze.step(state, action)
+        next_state, reward = maze.step(state, action, ends)
 
         # Q-Learning update
         q_value[state[0], state[1], action] += \
@@ -172,8 +175,53 @@ def dyna_q(q_value, model, maze, dyna_params):
         if steps > maze.max_steps:
             break
 
+        if state in ends:
+            ends.remove(state)
+
     return steps
 
+def dyna_q_action(q_value, model, maze, dyna_params):
+    state = maze.START_STATE
+    ends = copy(maze.GOAL_STATES)
+    steps = 0
+    actions_record = []
+    while ends:
+
+        # track the steps
+        steps += 1
+
+        # get action
+        action = choose_action(state, q_value, maze, dyna_params)
+
+        # take action
+        next_state, reward = maze.step(state, action, ends)
+
+        # Q-Learning update
+        q_value[state[0], state[1], action] += \
+            dyna_params.alpha * (reward + dyna_params.gamma * np.max(q_value[next_state[0], next_state[1], :]) -
+                                 q_value[state[0], state[1], action])
+
+        # feed the model with experience
+        model.feed(state, action, next_state, reward)
+
+        # sample experience from the model
+        for t in range(0, dyna_params.planning_steps):
+            state_, action_, next_state_, reward_ = model.sample()
+            q_value[state_[0], state_[1], action_] += \
+                dyna_params.alpha * (reward_ + dyna_params.gamma * np.max(q_value[next_state_[0], next_state_[1], :]) -
+                                     q_value[state_[0], state_[1], action_])
+
+        state = next_state
+
+        # check whether it has exceeded the step limit
+        if steps > maze.max_steps:
+            break
+
+        if state in ends:
+            ends.remove(state)
+        actions_record.append(action)
+
+    return actions_record
 
 if __name__ == '__main__':
     # set up an instance for DynaMaze
@@ -182,7 +230,7 @@ if __name__ == '__main__':
 
     runs = 1
     episodes = 10
-    planning_steps = [0, 5, 50]
+    planning_steps = [0, 5]
     steps = np.zeros((len(planning_steps), episodes))
 
     for run in tqdm(range(runs)):
@@ -206,4 +254,5 @@ if __name__ == '__main__':
     plt.legend()
     plt.savefig(os.getcwd()+'/algorithms/images/figure_8_2.png')
     plt.close()
-
+    actions = dyna_q_action(q_value, model, dyna_maze, dyna_params)
+    print(actions)
