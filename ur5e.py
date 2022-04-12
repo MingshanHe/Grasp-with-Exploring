@@ -1,26 +1,11 @@
-from logging import error
-from pkgutil import get_data
-from tracemalloc import start
-from turtle import pos
-
-from cv2 import mean
-from urx.robot import Robot
-from utils import Logger
-from utils import Filter
-import utils
-from explore import FrontierSearch
-from model import QLearningTable
-
 from vrep_api import vrep
 import numpy as np
-import socket
 import time
-import struct
 import os
 
-import cv2
-
-import test
+from urx.robot import Robot
+import model
+import utils
 
 
 class UR5E(Robot):
@@ -32,7 +17,7 @@ class UR5E(Robot):
         """
         #? Initialize data logger
         logging_directory = os.path.abspath('logs')
-        self.datalogger = Logger(logging_directory)
+        self.datalogger = utils.Logger(logging_directory)
 
         #! Set up grasp params
         self.pre_grasp_high = 0.1
@@ -67,14 +52,14 @@ class UR5E(Robot):
 
         #? Initialize trainer
         self.resolutions = (32,32)
-        self.heatmap = test.Map(self.workspace_limits, resolutions=self.resolutions)
+        self.heatmap = model.Map(self.workspace_limits, resolutions=self.resolutions)
 
         # self.frontierSearch = FrontierSearch(self.workspace_limits, self.resolutions)
         # self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
 
         #? Initialize filter
-        self.forceFilter = Filter()
-        self.torqueFilter = Filter()
+        self.forceFilter = utils.Filter()
+        self.torqueFilter = utils.Filter()
 
         # Make sure to have the server side running in V-REP:
         # in a child script of a V-REP scene, add following command
@@ -265,7 +250,7 @@ class UR5E(Robot):
             goal_pos = []
             goal_pos.append(self.heatmap.WorldToMap(self.object_pos[i]))
             print("[DYN_Q INFO]: Goal Pos is ", goal_pos)
-            actions = test.Dyn_Q(Start=start_pos, Goal=goal_pos, Maze_Width=self.resolutions[0], Maze_Height=self.resolutions[1])
+            actions = model.Dyn_Q(Start=start_pos, Goal=goal_pos, Maze_Width=self.resolutions[0], Maze_Height=self.resolutions[1])
 
             for i in range(len(actions)):
 
