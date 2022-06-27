@@ -17,3 +17,6 @@ pip3 install math3d
 * TODO: Training Score
 * TODO: Training ...
 'python3 main.py --use_sim --train_axis 'x' --iterations 100'
+
+
+This is Graph based Project
