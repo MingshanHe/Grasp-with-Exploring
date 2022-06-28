@@ -14,6 +14,121 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+#! Map Struct
+import numpy as np
+import scipy.ndimage
+class Map():
+    '''
+    Map Class: pixel map class
+    using workspace_limits and resolutions to create a pixel map
+    '''
+    def __init__(self,workspace_limits, resolutions):
+        self.workspace_limits = workspace_limits
+        self.resolutions = resolutions
+        self.GOAL_STATE = []
+        self.START_STATE = []
+        # self.range_ = int(self.depth.shape[0]/50)
+
+    def add_depth(self, depth):
+        '''
+        resize the depth map and create the heatmap
+        '''
+        self.depth = scipy.ndimage.zoom(depth, (self.resolutions[0]/depth.shape[0], self.resolutions[1]/depth.shape[1]))
+        self.heatmap = np.zeros(self.resolutions)
+
+    def MapToWorld(self, map_idx):
+        '''
+        using workspace limits to compute the world position of the map postion
+        map_pos -> world_pos
+        '''
+        world_x = ((map_idx[0]+1) * np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))/self.resolutions[0] + self.workspace_limits[0][0]
+        world_y = ((map_idx[1]+1) * np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))/self.resolutions[1] + self.workspace_limits[1][0]
+        return([world_x, world_y])
+
+    def WorldToMap(self, world_idx):
+        '''
+        using workspace limits to compute the map position of the world position
+        world_pos -> map_pos
+        '''
+        map_x = int((world_idx[0] - self.workspace_limits[0][0]) * self.resolutions[0]/np.fabs(self.workspace_limits[0][0]-self.workspace_limits[0][1]))-1
+        map_y = int((world_idx[1] - self.workspace_limits[1][0]) * self.resolutions[1]/np.fabs(self.workspace_limits[1][0]-self.workspace_limits[1][1]))-1
+        return([map_x, map_y])
+
+    def updatemap(self, x, y, value):
+        '''
+        Update the heatmap with given value
+        '''
+        if (x >= 0 and x < self.heatmap.shape[0]) and (y >=0 and y < self.heatmap.shape[1]):
+            self.heatmap[x][y] =  value
+
+    def updateFree(self, pos, angle):
+        '''
+        determine the position of the robot end,
+        and update the heatmap with free value
+        '''
+        self.update_explore_complete(pos)
+        for i in range(self.range_):
+            for j in range(self.range_):
+                #TODO: Add some if condition to judge in the map limits
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 120)
+
+    def updateFrontier(self, pos, angle):
+        '''
+        determine the position of the robot end,
+        and update the heatmap with frontier value
+        '''
+        self.update_explore_complete(pos)
+        for i in range(self.range_):
+            for j in range(self.range_):
+                #TODO: Add some if condition to judge in the map limits
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 255)
+
+                x = int(pos[0]+ (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.heatmap[x][y] = 255
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]- (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 255)
+
+                x = int(pos[0]- (i * np.cos(angle) - j * np.sin(angle)))
+                y = int(pos[1]+ (i * np.sin(angle) + j * np.cos(angle)))
+                self.updatemap(x, y, 255)
+
+    def step(self, action, current_pos):
+        '''
+        action: | UP | DOWN | LEFT | RIGHT |
+        '''
+        # act_pos = [current_pos[0],current_pos[1]]
+        now_pos = self.WorldToMap(current_pos)
+        if action == 0:
+            now_pos[0] -= 1
+        elif action == 1:
+            now_pos[0] += 1
+        elif action == 2: # x+
+            now_pos[1] -= 1
+        elif action == 3: # x-
+            now_pos[1] += 1
+        predict_pos = self.MapToWorld(now_pos)
+        return predict_pos
 
 class Logger():
 
@@ -101,16 +216,6 @@ class Filter():
         self.OldData = None
         self.NewData = None
         self.Initial = False
-
-# Cross entropy loss for 2D outputs
-class CrossEntropyLoss2d(nn.Module):
-
-    def __init__(self, weight=None, size_average=True):
-        super(CrossEntropyLoss2d, self).__init__()
-        self.nll_loss = nn.NLLLoss2d(weight, size_average)
-
-    def forward(self, inputs, targets):
-        return self.nll_loss(F.log_softmax(inputs, dim=1), targets)
 
 
 
