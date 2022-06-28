@@ -40,6 +40,8 @@ if __name__ == '__main__':
 
     # --------------- Setup options ---------------
     parser.add_argument('--iterations', dest='iterations', type=int,    action='store', default=50,                 help='Iterations to train')
+
     # Run main program with specified arguments
     args = parser.parse_args()
+
     main(args)
