@@ -52,7 +52,7 @@ class UR5E(Robot):
 
         #? Initialize trainer
         self.resolutions = (32,32)
-        self.heatmap = model.Map(self.workspace_limits, resolutions=self.resolutions)
+        self.heatmap = utils.Map(self.workspace_limits, resolutions=self.resolutions)
 
         # self.frontierSearch = FrontierSearch(self.workspace_limits, self.resolutions)
         # self.RL = QLearningTable(actions=list(range(self.frontierSearch.n_actions)))
@@ -457,27 +457,3 @@ class UR5E(Robot):
         depth_img[depth_img < mean_] = 0
 
         return color_img, depth_img
-
-    # def Train(self, use_heuristic):
-
-    #     grasp_predictions, state_feat = self.trainer.forward(self.heatmap, is_volatile=True)
-
-    #     best_grasp_conf = np.max(grasp_predictions)
-    #     print('[TRAINER INFO]: Primitive GRASP confidence scores: %f' % (best_grasp_conf))
-
-    #     if use_heuristic:
-    #         best_pix_ind = self.trainer.grasp_heuristic(self.heatmap)
-    #         predicted_value = grasp_predictions[best_pix_ind]
-    #     else:
-    #         best_pix_ind = np.unravel_index(np.argmax(grasp_predictions), grasp_predictions.shape)
-    #         predicted_value = np.max(grasp_predictions)
-    #     self.prev_best_pix_ind = best_pix_ind
-    #     print('[TRAINER INFO]: Action Grasp at (%d, %d, %d)' % (best_pix_ind[0], best_pix_ind[1], best_pix_ind[2]))
-    #     best_rotation_angle = np.deg2rad(best_pix_ind[0]*(360.0/self.trainer.model.num_rotations))
-    #     best_pix_x = best_pix_ind[2]
-    #     best_pix_y = best_pix_ind[1]
-
-    #     primitive_position = [best_pix_x * self.trainer.heatmap_resolution + self.workspace_limits[0][0], 
-    #     best_pix_y * self.trainer.heatmap_resolution + self.workspace_limits[1][0]]
-
-    #     self.Grasp(pos_data=(primitive_position[0], primitive_position[1]), ori_data=(np.pi/2, best_rotation_angle, np.pi/2))
