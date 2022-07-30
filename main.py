@@ -31,6 +31,8 @@ def main(args):
 
         ur5e.Explore()
 
+        ur5e.stop_sim()
+
         print("--------------------------------------------------")
 
 if __name__ == '__main__':

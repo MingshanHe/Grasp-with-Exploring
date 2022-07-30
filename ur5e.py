@@ -164,6 +164,9 @@ class UR5E(Robot):
             time.sleep(1)
             sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
 
+    def stop_sim(self):
+        vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
+
     def Go(self, pose):
         """
         Let the Robot move to
